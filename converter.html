@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="color-scheme" content="light dark" />
+  <meta name="description" content="Convert EPUB ebooks to plain text. Edit the content in your browser before downloading the TXT file. No uploads — everything runs locally." />
+  <meta name="theme-color" content="#6366f1" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#0a0a0a" media="(prefers-color-scheme: dark)" />
+  <title>EPUB → TXT Converter</title>
+  <link rel="stylesheet" href="css/converter.css" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236366f1' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 19.5A2.5 2.5 0 0 1 6.5 17H20'/%3E%3Cpath d='M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z'/%3E%3C/svg%3E" />
+  <script>
+    // Apply theme before paint to avoid flash of incorrect theme
+    (function () {
+      try {
+        var saved = localStorage.getItem("epub-txt-theme");
+        var theme =
+          saved === "light" || saved === "dark"
+            ? saved
+            : window.matchMedia("(prefers-color-scheme: dark)").matches
+            ? "dark"
+            : "light";
+        document.documentElement.setAttribute("data-theme", theme);
+      } catch (e) {
+        document.documentElement.setAttribute("data-theme", "light");
+      }
+    })();
+  </script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="brand" href="#" aria-label="EPUB to TXT converter home">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+          </svg>
+        </span>
+        <span class="brand-text">
+          <strong>EPUB</strong><span class="brand-arrow" aria-hidden="true">→</span><strong>TXT</strong>
+        </span>
+      </a>
+      <button
+        type="button"
+        class="icon-button theme-toggle"
+        id="themeToggle"
+        aria-label="Toggle color theme"
+        title="Toggle theme"
+      >
+        <svg class="icon icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="4" />
+          <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+        </svg>
+        <svg class="icon icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <main id="main" class="container main">
+    <!-- Hero / intro -->
+    <section class="hero" aria-labelledby="hero-title">
+      <h1 id="hero-title" class="hero-title">Convert EPUB to editable text</h1>
+      <p class="hero-sub">Drop an EPUB file, edit the extracted text right in your browser, then download a clean <code>.txt</code>. Nothing leaves your device.</p>
+    </section>
+
+    <!-- Drop zone (initial state) -->
+    <section
+      class="dropzone"
+      id="dropzone"
+      role="button"
+      tabindex="0"
+      aria-label="Drop an EPUB file here or click to choose a file"
+    >
+      <input
+        type="file"
+        id="fileInput"
+        accept=".epub,application/epub+zip,application/octet-stream"
+        hidden
+      />
+      <div class="dropzone-inner">
+        <span class="dropzone-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="17 8 12 3 7 8" />
+            <line x1="12" y1="3" x2="12" y2="15" />
+          </svg>
+        </span>
+        <div class="dropzone-text">
+          <p class="dropzone-title">Drop your EPUB here</p>
+          <p class="dropzone-sub">or <span class="link">browse your files</span></p>
+        </div>
+        <p class="dropzone-hint">Supported: <code>.epub</code> · Processed locally</p>
+      </div>
+    </section>
+
+    <!-- Loading state -->
+    <section class="status status-loading" id="loading" hidden aria-live="polite">
+      <span class="spinner" aria-hidden="true"></span>
+      <p>Parsing your EPUB…</p>
+    </section>
+
+    <!-- Error state -->
+    <section class="status status-error" id="errorBox" hidden role="alert">
+      <span class="status-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10" />
+          <line x1="12" y1="8" x2="12" y2="12" />
+          <line x1="12" y1="16" x2="12.01" y2="16" />
+        </svg>
+      </span>
+      <div>
+        <p class="status-title">Couldn’t read that file</p>
+        <p class="status-message" id="errorMessage">Please make sure it is a valid EPUB file and try again.</p>
+      </div>
+      <button type="button" class="ghost-button" id="errorDismiss" aria-label="Dismiss error">Dismiss</button>
+    </section>
+
+    <!-- Editor (hidden until file is loaded) -->
+    <section class="editor" id="editor" hidden aria-labelledby="book-title">
+      <header class="editor-header">
+        <div class="book-meta">
+          <h2 id="book-title" class="book-title">Untitled</h2>
+          <p class="book-author" id="book-author"></p>
+        </div>
+        <div class="editor-actions">
+          <button type="button" class="ghost-button" id="newFileBtn" title="Convert another file">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="1 4 1 10 7 10" />
+              <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+            </svg>
+            <span>New file</span>
+          </button>
+        </div>
+      </header>
+
+      <div class="toolbar" role="toolbar" aria-label="Text editor toolbar">
+        <div class="stats" aria-live="polite">
+          <span class="stat"><span id="charCount">0</span> chars</span>
+          <span class="stat"><span id="wordCount">0</span> words</span>
+          <span class="stat"><span id="lineCount">0</span> lines</span>
+          <span class="stat"><span id="readTime">0</span> min read</span>
+        </div>
+        <div class="toolbar-actions">
+          <button type="button" class="ghost-button" id="copyBtn" title="Copy text to clipboard (Ctrl+Shift+C)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+            </svg>
+            <span>Copy</span>
+          </button>
+          <button type="button" class="primary-button" id="downloadBtn" title="Download as TXT (Ctrl+S)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            <span>Download TXT</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="editor-wrap">
+        <textarea
+          id="textEditor"
+          class="text-editor"
+          spellcheck="false"
+          autocapitalize="off"
+          autocomplete="off"
+          autocorrect="off"
+          aria-label="Editable extracted text"
+          placeholder="The extracted text will appear here. You can edit it freely before downloading."
+        ></textarea>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <p>Runs entirely in your browser. Your file never leaves your device.</p>
+      <p class="footer-meta">No tracking · No uploads · No frameworks</p>
+    </div>
+  </footer>
+
+  <!-- Toast for transient feedback -->
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <script src="js/jszip.min.js"></script>
+  <script src="js/converter.js" defer></script>
+</body>
+</html>

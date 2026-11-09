@@ -29,19 +29,11 @@
   };
   
   let settings = loadSettings();
-  let manifest = null;
+  let chapters = []; // [{ title, text }]
   let bookMeta = null;
   let chapterIndex = 0;
   let saveTimer = null;
-  let zip = null; // the loaded JSZip archive for this book
   
-  function naturalSort(a, b) {
-    return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
-  }
-  
-  // Escape any string before it goes into innerHTML, so chapter titles
-  // and chapter text (which come from the book's zip/manifest) can
-  // never be interpreted as markup.
   function escapeHtml(str) {
     return String(str).replace(/[&<>"']/g, ch => ({
       '&': '&amp;',
@@ -50,6 +42,119 @@
       '"': '&quot;',
       "'": '&#39;'
     } [ch]));
+  }
+  
+  // =====================================================================
+  //  CHAPTER DETECTION
+  // =====================================================================
+  //
+  //  1. EXPLICIT:   --- Chapter Title ---
+  //     If a book contains at least one of these, ONLY these are used.
+  //     (Your own markup always wins, so nothing in the prose can
+  //     accidentally split a chapter.)
+  //
+  //  2. IMPLICIT (only when there are no explicit headings). A line counts
+  //     as a heading when it is short (<= 80 chars), has a blank line
+  //     before and after it, and matches one of:
+  //       - keyword + number:  Chapter 1 / CHAPTER IV / Chapter One /
+  //                            Chapter 3: Title / Part Two / Book 2 /
+  //                            Kabanata 1 / Capítulo 4 / ...
+  //       - special sections:  Prologue, Epilogue, Preface, Foreword,
+  //                            Introduction, Afterword, Interlude
+  //       - bare numerals:     "12", "12.", "IV", "IV."
+  //       - CJK:               第1章 / 第十二話
+  //
+  //  3. If nothing matches, the whole file is one chapter.
+  // ---------------------------------------------------------------------
+  
+  const EXPLICIT_RE = /^-{3}\s*(.+?)\s*-{3}$/;
+  
+  const WORD_NUM = '(?:twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)(?:[- ](?:one|two|three|four|five|six|seven|eight|nine))?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|hundred';
+  const ROMAN = '(?=[ivxlcdm])m{0,3}(?:cm|cd|d?c{0,3})(?:xc|xl|l?x{0,3})(?:ix|iv|v?i{0,3})';
+  const NUM = `(?:\\d+|${WORD_NUM}|${ROMAN})`;
+  const KEYWORDS = 'chapter|chap|part|book|section|volume|vol|act|kabanata|cap[ií]tulo|chapitre|kapitel|capitolo';
+  
+  const KEYWORD_RE = new RegExp(`^(?:${KEYWORDS})\\.?\\s+${NUM}\\b\\s*(?:[.:\\-\\u2013\\u2014)]\\s*.*)?$`, 'i');
+  const SPECIAL_RE = /^(?:prologue|epilogue|preface|foreword|introduction|afterword|interlude|author'?s note)\b.{0,60}$/i;
+  const BARE_NUM_RE = new RegExp(`^(?:\\d{1,4}|${ROMAN})\\.?$`, 'i');
+  const CJK_RE = /^第\s*[0-9一二三四五六七八九十百零〇]+\s*[章話话節节回幕部]/;
+  
+  function isImplicitHeading(line) {
+    if (!line || line.length > 80) return false;
+    return KEYWORD_RE.test(line) || SPECIAL_RE.test(line) ||
+      BARE_NUM_RE.test(line) || CJK_RE.test(line);
+  }
+  
+  function parseBook(raw, fallbackTitle) {
+    const text = raw.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n');
+    const lines = text.split('\n');
+    
+    // Pass 1: find headings
+    const explicit = [];
+    const implicit = [];
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+      
+      const m = line.match(EXPLICIT_RE);
+      if (m) {
+        explicit.push({ index: i, title: m[1].trim() });
+        continue;
+      }
+      
+      const prevBlank = i === 0 || lines[i - 1].trim() === '';
+      const nextBlank = i === lines.length - 1 || lines[i + 1].trim() === '';
+      if (prevBlank && nextBlank && isImplicitHeading(line)) {
+        implicit.push({ index: i, title: line });
+      }
+    }
+    
+    const headings = explicit.length ? explicit : implicit;
+    
+    if (!headings.length) {
+      return [{ title: fallbackTitle, text: text.trim() }];
+    }
+    
+    // Pass 2: slice the text between headings
+    const result = [];
+    const preamble = lines.slice(0, headings[0].index).join('\n').trim();
+    // Keep text before the first heading only if it's real content
+    // (a bare title/subtitle block is skipped).
+    if (preamble.length > 300) {
+      result.push({ title: 'Beginning', text: preamble });
+    }
+    
+    headings.forEach((h, i) => {
+      const end = i + 1 < headings.length ? headings[i + 1].index : lines.length;
+      const body = lines.slice(h.index + 1, end).join('\n').trim();
+      result.push({ title: h.title, text: body });
+    });
+    
+    return result;
+  }
+  
+  // ---------- paragraph rendering ----------
+  function blockToHtml(block) {
+    const ls = block.split('\n').map(l => l.trim()).filter(Boolean);
+    if (ls.length === 1) return `<p>${escapeHtml(ls[0])}</p>`;
+    const avg = ls.reduce((n, l) => n + l.length, 0) / ls.length;
+    // short lines => poetry / verse: keep the line breaks
+    if (avg < 50) return `<p>${ls.map(escapeHtml).join('<br>')}</p>`;
+    // long lines => hard-wrapped prose: re-flow
+    return `<p>${escapeHtml(ls.join(' '))}</p>`;
+  }
+  
+  function paragraphize(text) {
+    const blocks = text.split(/\n\s*\n/).map(b => b.trim()).filter(Boolean);
+    
+    // No blank lines at all, but long lines => one paragraph per line
+    if (blocks.length === 1) {
+      const ls = blocks[0].split('\n').map(l => l.trim()).filter(Boolean);
+      if (ls.length > 1 && ls.some(l => l.length > 100)) {
+        return ls.map(l => `<p>${escapeHtml(l)}</p>`).join('');
+      }
+    }
+    return blocks.map(blockToHtml).join('');
   }
   
   // ---------- settings persistence ----------
@@ -160,7 +265,7 @@
   }
   
   function overallPercent() {
-    const total = manifest.chapters.length;
+    const total = chapters.length;
     const pct = ((chapterIndex + scrollFraction()) / total) * 100;
     return Math.min(100, Math.max(0, pct));
   }
@@ -195,40 +300,21 @@
         <a href="index.html" class="nav-btn">Back to the archive</a></div>`;
   }
   
-  function paragraphize(text) {
-    return text
-      .split(/\n{2,}/)
-      .map(p => p.trim())
-      .filter(Boolean)
-      .map(p => `<p>${escapeHtml(p).replace(/\n/g, ' ')}</p>`)
-      .join('');
-  }
-  
-  async function loadChapter(index, restoreScroll) {
-    chapterIndex = Math.min(Math.max(index, 0), manifest.chapters.length - 1);
-    const chapter = manifest.chapters[chapterIndex];
-    renderState('Turning the page…');
+  function loadChapter(index, restoreScroll) {
+    chapterIndex = Math.min(Math.max(index, 0), chapters.length - 1);
+    const chapter = chapters[chapterIndex];
+    const total = chapters.length;
+    const title = chapter.title || ('Chapter ' + (chapterIndex + 1));
     
-    let text;
-    try {
-      const entry = zip.file(chapter.file);
-      if (!entry) throw new Error(`"${chapter.file}" not found in the zip`);
-      text = await entry.async('string');
-    } catch (err) {
-      renderError(`This chapter couldn't be loaded (${err.message}).`);
-      return;
-    }
-    
-    const total = manifest.chapters.length;
-    const options = manifest.chapters.map((c, i) =>
+    const options = chapters.map((c, i) =>
       `<option value="${i}" ${i === chapterIndex ? 'selected' : ''}>${escapeHtml(c.title || ('Chapter ' + (i + 1)))}</option>`
     ).join('');
     
     el.surface.innerHTML = `
         <div class="reader-page">
           <div class="chapter-eyebrow">Chapter ${chapterIndex + 1} of ${total}</div>
-          <h1 class="chapter-title">${escapeHtml(chapter.title || ('Chapter ' + (chapterIndex + 1)))}</h1>
-          <div class="chapter-body font-${settings.font}">${paragraphize(text)}</div>
+          <h1 class="chapter-title">${escapeHtml(title)}</h1>
+          <div class="chapter-body font-${settings.font}">${paragraphize(chapter.text)}</div>
           <div class="chapter-nav">
             <button class="nav-btn" id="prevBtn" ${chapterIndex === 0 ? 'disabled' : ''}>Prev</button>
             <select class="chapter-select" id="chapterSelect">${options}</select>
@@ -278,58 +364,34 @@
         bookMeta = books.find(b => String(b.id) === String(bookId)) || null;
       }
       const fallbackTitle = bookMeta ? bookMeta.title : `Book ${bookId}`;
+      el.topbarTitle.textContent = fallbackTitle;
       
-      renderState('Unpacking the book…');
+      renderState('Opening the book…');
       
-      const zipPath = (bookMeta && bookMeta.zip) ? bookMeta.zip : `books/${bookId}.zip`;
+      const filePath = (bookMeta && bookMeta.file) ? bookMeta.file : `books/${bookId}.txt`;
       
-      let zipRes;
+      let raw;
       try {
-        zipRes = await fetch(zipPath); // default caching: a book's zip rarely changes, so let repeat visits use the cache
-        if (!zipRes.ok) throw new Error(`HTTP ${zipRes.status}`);
+        const res = await fetch(filePath);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        raw = await res.text();
       } catch (err) {
-        el.topbarTitle.textContent = fallbackTitle;
-        renderError(`"${fallbackTitle}" isn't on the archive yet — ${zipPath} couldn't be found.`);
+        renderError(`"${fallbackTitle}" isn't on the archive yet — ${filePath} couldn't be found.`);
         return;
       }
       
-      const buffer = await zipRes.arrayBuffer();
-      zip = await JSZip.loadAsync(buffer);
-      
-      // If the zip includes its own manifest.json, use it for titles/order.
-      const manifestEntry = zip.file('manifest.json');
-      if (manifestEntry) {
-        manifest = JSON.parse(await manifestEntry.async('string'));
-      } else {
-        const chapterFiles = Object.keys(zip.files)
-          .filter(name => /\.txt$/i.test(name) && !zip.files[name].dir)
-          .sort(naturalSort);
-        
-        if (chapterFiles.length === 0) {
-          el.topbarTitle.textContent = fallbackTitle;
-          renderError(`"${fallbackTitle}"'s zip doesn't contain any .txt chapter files.`);
-          return;
-        }
-        
-        manifest = {
-          title: fallbackTitle,
-          chapters: chapterFiles.map((file, i) => ({ file, title: `Chapter ${i + 1}` }))
-        };
-      }
-      
-      const title = manifest.title || fallbackTitle;
-      el.topbarTitle.textContent = title;
-      
-      if (!Array.isArray(manifest.chapters) || manifest.chapters.length === 0) {
-        renderError(`"${title}" doesn't have any chapters yet.`);
+      if (!raw.trim()) {
+        renderError(`"${fallbackTitle}" is empty.`);
         return;
       }
+      
+      chapters = parseBook(raw, fallbackTitle);
       
       applySettings();
       
       const saved = loadProgress(bookId);
       const startIndex = saved ? saved.chapterIndex : 0;
-      await loadChapter(startIndex, true);
+      loadChapter(startIndex, true);
       
       window.addEventListener('scroll', onScroll, { passive: true });
       window.addEventListener('beforeunload', persistProgress);
