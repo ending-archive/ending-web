@@ -399,15 +399,6 @@ body.theme-dark {
   margin: 0 0 1.3em;
 }
 
-.chapter-body p:first-of-type::first-letter {
-  font-family: "Fraunces", serif;
-  font-size: 2.6em;
-  float: left;
-  line-height: 0.85;
-  padding: 0.05em 0.08em 0 0;
-  font-weight: 600;
-}
-
 .chapter-nav {
   display: flex;
   justify-content: space-between;
