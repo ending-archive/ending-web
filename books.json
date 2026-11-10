@@ -1,74 +1,72 @@
 [
   {
-    "id": 1,
+    "id": "cartographers-daughter",
     "title": "The Cartographer's Daughter",
     "author": "Eleanor Whitfield",
     "cover": "https://picsum.photos/seed/book-cartographers-daughter/600/800",
-    "zip": "books/cartographers-daughter.zip"
+    "file": "books/cartographers-daughter.txt"
   },
   {
-    "id": 2,
+    "id": "letter-to-a-young-botanist",
     "title": "Letters to a Young Botanist",
     "author": "H. T. Marwick",
     "cover": "https://picsum.photos/seed/book-letters-botanist/600/800",
-    "zip": "books/letter-to-a-young-botanist.zip"
+    "file": "books/letter-to-a-young-botanist.txt"
   },
   {
-    "id": 3,
+    "id": "of-silent-things",
     "title": "Of Silent Things",
     "author": "Yuki Tawara",
     "cover": "https://picsum.photos/seed/book-silent-things/600/800",
-    "zip": "books/of-silent-things.zip"
+    "file": "books/of-silent-things.txt"
   },
   {
-    "id": 4,
+    "id": "year-of-long-afternoons",
     "title": "The Year of Long Afternoons",
     "author": "Marco Bianchi",
     "cover": "https://picsum.photos/seed/book-long-afternoons/600/800",
-    "zip": "books/year-of-long-afternoons.zip"
+    "file": "books/year-of-long-afternoons.txt"
   },
   {
-    "id": 5,
+    "id": "anatomy-of-a-quiet-room",
     "title": "Anatomy of a Quiet Room",
     "author": "Iris Cole",
     "cover": "https://picsum.photos/seed/book-quiet-room/600/800",
-    "zip": "books/anatomy-of-quiet-room.zip"
+    "file": "books/anatomy-of-a-quiet-room.txt"
   },
   {
-    "id": 6,
+    "id": "last-lighthouse-keeper",
     "title": "The Last Lighthouse Keeper",
     "author": "A. F. Pemberton",
     "cover": "https://picsum.photos/seed/book-lighthouse-keeper/600/800",
-    "zip": "books/last-lighthouse-keeper.zip"
+    "file": "books/last-lighthouse-keeper.txt"
   },
   {
-    "id": 7,
+    "id": "fields-notes-from-the-edge",
     "title": "Field Notes from the Edge",
     "author": "Tobias Lyle",
     "cover": "https://picsum.photos/seed/book-field-notes-edge/600/800",
-    "zip": "books/fiels-notes-from-the-edge.zip"
+    "file": "books/fields-notes-from-the-edge.txt"
   },
   {
-    "id": 8,
+    "id": "glasshouse-years",
     "title": "The Glasshouse Years",
     "author": "Petra Holm",
     "cover": "https://picsum.photos/seed/book-glasshouse-years/600/800",
-    "zip": "books/glasshouse-years.zip"
+    "file": "books/glasshouse-years.txt"
   },
   {
-    "id": 9,
+    "id": "slow-water",
     "title": "Slow Water",
     "author": "Nadia Okafor",
     "cover": "https://picsum.photos/seed/book-slow-water/600/800",
-    "zip": "books/slow-waters.zip"
+    "file": "books/slow-water.txt"
   },
   {
-    "id": 10,
+    "id": "pocket-book-of-hours",
     "title": "A Pocket Book of Hours",
     "author": "Anonymous",
     "cover": "https://picsum.photos/seed/book-pocket-hours/600/800",
-    "zip": "books/pocket-book-of-hours.zip"
+    "file": "books/pocket-book-of-hours.txt"
   }
-  
-  
 ]

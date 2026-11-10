@@ -1,6 +1,6 @@
 @font-face {
   font-family: "Fraunces";
-  src: url("fonts/fraunces.woff2");
+  src: url("../fonts/fraunces.woff2");
   font-weight: 300 700;
   font-display: swap;
   size-adjust: 100%;
@@ -8,14 +8,14 @@
 
 @font-face {
   font-family: "Work Sans";
-  src: url("fonts/worksans.woff2");
+  src: url("../fonts/worksans.woff2");
   font-weight: 380 550;
   font-display: swap;
 }
 
 @font-face {
   font-family: "Space Mono";
-  src: url("fonts/spacemono.woff2");
+  src: url("../fonts/spacemono.woff2");
   font-weight: 380 550;
   font-display: swap;
 }
