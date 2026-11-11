@@ -861,9 +861,32 @@ main {
 }
 
 footer {
-  text-align: center;
+  display: grid;
+  gap: 0.75rem;
   font-family: "Space Mono", monospace;
   font-size: 0.7rem;
   color: var(--text-muted);
   padding: 0 1rem 3.2rem;
+  max-width: 1100px;
+  margin: auto;
+}
+
+.footer-links {
+  gap: 0.35rem 1rem;
+  max-width: 100%;
+}
+
+.footer-links a {
+  color: var(--brass-bright);
+  text-decoration: none;
+}
+
+.footer-links a:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.footer-links a:focus-visible {
+  outline: 2px solid var(--brass-bright);
+  outline-offset: 3px;
 }

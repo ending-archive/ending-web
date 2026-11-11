@@ -26,6 +26,10 @@
       type="font/woff2"
       crossorigin
     />
+
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png" />
   </head>
 
   <body>
@@ -126,8 +130,20 @@
       </div>
     </main>
 
-    <footer>3NDING — a public archive, lovingly overdue.</footer>
-    <div class="share-status" id="shareStatus" role="status" aria-live="polite" hidden></div>
+    <footer>
+      <p>3NDING — a public archive, lovingly overdue.</p>
+      <nav class="footer-links" aria-label="Help and legal">
+        <a href="/support">Support</a> | <a href="/terms">Terms</a> |
+        <a href="/privacy">Privacy</a>
+      </nav>
+    </footer>
+    <div
+      class="share-status"
+      id="shareStatus"
+      role="status"
+      aria-live="polite"
+      hidden
+    ></div>
 
     <script src="js/index.js" defer></script>
   </body>
