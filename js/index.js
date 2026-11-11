@@ -87,9 +87,9 @@
     return favorites.has(String(id));
   }
 
-  function updateFavCount() {
-    favCount.textContent = favorites.size;
-  }
+    function updateFavCount() {
+      favCount.textContent = allBooks.filter((b) => isFavorite(b.id)).length;
+    }
 
   function toggleFavorite(id) {
     const key = String(id);
@@ -107,7 +107,7 @@
       applyFilter(false);
       return;
     }
-    const btn = grid.querySelector(`.fav-btn[data-id="${key}"]`);
+    const btn = grid.querySelector(`.fav-btn[data-id="${CSS.escape(key)}"]`);
     if (btn) {
       const active = favorites.has(key);
       btn.classList.toggle("active", active);
@@ -331,7 +331,7 @@
 
     const started = Date.now();
     try {
-      const res = await fetch("books.json", { cache: "no-store" });
+      const res = await fetch("books.json", { cache: "no-cache" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const books = await res.json();
 
@@ -354,7 +354,7 @@
     } catch (err) {
       grid.innerHTML = `
         <div class="error-box">
-          The archive couldn't be reached (${err.message}).<br>
+          The archive couldn't be reached (${escapeHtml(err.message)}).<br>
           Make sure <code>books.json</code> sits next to this page.
           <div><button id="retry">Try again</button></div>
         </div>`;

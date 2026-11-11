@@ -3,7 +3,6 @@
   src: url("../fonts/fraunces.woff2");
   font-weight: 300 700;
   font-display: swap;
-  size-adjust: 100%;
 }
 
 @font-face {
@@ -380,7 +379,7 @@ body.theme-dark {
 
 .chapter-body {
   font-size: 1.0625rem;
-  /* overridden by JS via --font-size */
+  hyphens: auto;
   font-size: var(--font-size, 1.0625rem);
   line-height: 1.75;
   text-align: var(--text-align, left);

@@ -197,9 +197,15 @@
   // ---------- settings persistence ----------
   function loadSettings() {
     try {
-      const raw = localStorage.getItem(SETTINGS_KEY);
-      if (!raw) return { ...DEFAULT_SETTINGS };
-      return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
+      const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
+      const out = { ...DEFAULT_SETTINGS };
+      if (["serif", "sans", "mono"].includes(s.font)) out.font = s.font;
+      if (["left", "justify"].includes(s.align)) out.align = s.align;
+      if (["paper", "sepia", "dark"].includes(s.theme)) out.theme = s.theme;
+      const n = Number(s.size);
+      if (Number.isFinite(n))
+        out.size = Math.min(SIZE_MAX, Math.max(SIZE_MIN, n));
+      return out;
     } catch {
       return { ...DEFAULT_SETTINGS };
     }
@@ -212,7 +218,7 @@
   }
 
   function applySettings() {
-    document.body.className = "theme-" + settings.theme;
+    document.body.classList = "theme-" + settings.theme;
     document.documentElement.style.setProperty(
       "--font-size",
       settings.size + "px",
@@ -318,10 +324,20 @@
     return Math.min(1, Math.max(0, window.scrollY / max));
   }
 
+  let chapterSpans = [];
+  function buildSpans() {
+    const total = chapters.reduce((n, c) => n + c.text.length, 0) || 1;
+    let acc = 0;
+    chapterSpans = chapters.map((c) => {
+      const s = { start: acc / total, span: c.text.length / total };
+      acc += c.text.length;
+      return s;
+    });
+  }
+
   function overallPercent() {
-    const total = chapters.length;
-    const pct = ((chapterIndex + scrollFraction()) / total) * 100;
-    return Math.min(100, Math.max(0, pct));
+    const { start, span } = chapterSpans[chapterIndex];
+    return Math.min(100, Math.max(0, (start + span * scrollFraction()) * 100));
   }
 
   function updateProgressUI() {
@@ -347,10 +363,6 @@
   // ---------- rendering ----------
   function renderState(message) {
     el.surface.innerHTML = `<div class="state-box"><span class="dot"></span> ${message}</div>`;
-  }
-
-  function jumpTo(y) {
-    window.scrollTo({ top: y, left: 0, behavior: "instant" });
   }
 
   function renderError(message) {
@@ -386,18 +398,19 @@
     applySettings();
 
     document.getElementById("prevBtn").addEventListener("click", () => {
-      jumpTo(0);
       loadChapter(chapterIndex - 1, false);
     });
     document.getElementById("nextBtn").addEventListener("click", () => {
-      jumpTo(0);
       loadChapter(chapterIndex + 1, false);
     });
     document.getElementById("chapterSelect").addEventListener("change", (e) => {
-      jumpTo(0);
       loadChapter(parseInt(e.target.value, 10), false);
     });
 
+    const jumpTo = (top) =>
+      window.scrollTo({ top, left: 0, behavior: "instant" });
+
+    // in loadChapter:
     if (restoreScroll) {
       const saved = loadProgress(bookId);
       if (saved && saved.chapterIndex === chapterIndex) {
@@ -453,6 +466,8 @@
 
       chapters = parseBook(raw, fallbackTitle);
 
+      buildSpans();
+
       applySettings();
 
       const saved = loadProgress(bookId);
@@ -465,7 +480,7 @@
       window.addEventListener("beforeunload", persistProgress);
       window.addEventListener("pagehide", persistProgress);
       document.addEventListener("visibilitychange", () => {
-        if (document.hidden) persistProgress();
+        if (document.visibilityState === "hidden") persistProgress();
       });
 
       document.title = `${fallbackTitle} | 3NDING`;
