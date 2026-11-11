@@ -42,11 +42,11 @@
     "file": "books/last-lighthouse-keeper.txt"
   },
   {
-    "id": "fields-notes-from-the-edge",
+    "id": "field-notes-from-the-edge",
     "title": "Field Notes from the Edge",
     "author": "Tobias Lyle",
     "cover": "https://picsum.photos/seed/book-field-notes-edge/600/800",
-    "file": "books/fields-notes-from-the-edge.txt"
+    "file": "books/field-notes-from-the-edge.txt"
   },
   {
     "id": "glasshouse-years",

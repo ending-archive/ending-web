@@ -18,14 +18,15 @@
   const drawerCloseBtn = document.getElementById("drawerCloseBtn");
 
   const SKELETON_COUNT = 10;
-  const MIN_LOADING_MS = 300; 
+  const MIN_LOADING_MS = 300;
   const PAGE_SIZE = 10;
   const FAVORITES_KEY = "ending:favorites";
+  const LIBRARY_PAGE_KEY = "ending:library-page";
 
   let allBooks = [];
   let favorites = loadFavorites();
   let favoritesOnly = false;
-  let currentPage = 1;
+  let currentPage = loadLibraryPage();
   let lastMatches = [];
 
   // Escape any string before it goes into innerHTML, so titles/authors
@@ -64,6 +65,21 @@
     try {
       const obj = Object.fromEntries(favorites);
       localStorage.setItem(FAVORITES_KEY, JSON.stringify(obj));
+    } catch {}
+  }
+
+  function loadLibraryPage() {
+    try {
+      const page = Number.parseInt(localStorage.getItem(LIBRARY_PAGE_KEY), 10);
+      return Number.isInteger(page) && page > 0 ? page : 1;
+    } catch {
+      return 1;
+    }
+  }
+
+  function saveLibraryPage() {
+    try {
+      localStorage.setItem(LIBRARY_PAGE_KEY, String(currentPage));
     } catch {}
   }
 
@@ -150,16 +166,16 @@
       const cover = escapeHtml(book.cover);
       const id = String(book.id);
       const active = isFavorite(id);
-      const card = document.createElement("a");
-      card.href = `reader.html?id=${encodeURIComponent(book.id)}`;
-      card.setAttribute("aria-label", `${book.title} by ${book.author}`);
-      card.style.textDecoration = "none";
-      card.style.color = "inherit";
+      const card = document.createElement("article");
+      const catalogNo = allBooks.indexOf(book) + 1;
       card.className = "card";
       card.style.animationDelay = `${Math.min(i * 40, 400)}ms`;
-      card.innerHTML = `
+      const cardLink = document.createElement("a");
+      cardLink.href = `reader.html?id=${encodeURIComponent(book.id)}`;
+      cardLink.setAttribute("aria-label", `${book.title} by ${book.author}`);
+      cardLink.className = "card-link";
+      cardLink.innerHTML = `
         <div class="cover-wrap">
-          <button type="button" class="fav-btn${active ? " active" : ""}" data-id="${id}" aria-pressed="${active}" aria-label="${active ? "Remove from favorites" : "Add to favorites"}">${active ? "\u2665" : "\u2661"}</button>
           <img src="${cover}" alt="Cover of ${title}" loading="lazy">
         </div>
         <div class="card-body">
@@ -167,14 +183,25 @@
           <p class="card-author">${author}</p>
         </div>
         <div class="slip">
-          <span>No. ${String(i + 1).padStart(4, "0")}</span>
+          <span>No. ${String(catalogNo).padStart(4, "0")}</span>
         </div>
       `;
-      card.querySelector(".fav-btn").addEventListener("click", (e) => {
+      const favoriteButton = document.createElement("button");
+      favoriteButton.type = "button";
+      favoriteButton.className = `fav-btn${active ? " active" : ""}`;
+      favoriteButton.dataset.id = id;
+      favoriteButton.setAttribute("aria-pressed", String(active));
+      favoriteButton.setAttribute(
+        "aria-label",
+        active ? "Remove from favorites" : "Add to favorites",
+      );
+      favoriteButton.textContent = active ? "\u2665" : "\u2661";
+      favoriteButton.addEventListener("click", (e) => {
         e.preventDefault();
         e.stopPropagation();
         toggleFavorite(id);
       });
+      card.append(cardLink, favoriteButton);
       grid.appendChild(card);
     });
   }
@@ -212,6 +239,7 @@
   function renderCurrentPage() {
     const totalPages = Math.max(1, Math.ceil(lastMatches.length / PAGE_SIZE));
     currentPage = Math.min(Math.max(currentPage, 1), totalPages);
+    saveLibraryPage();
     const start = (currentPage - 1) * PAGE_SIZE;
     renderBooks(lastMatches.slice(start, start + PAGE_SIZE));
     renderPagination(lastMatches.length);
@@ -228,7 +256,10 @@
   }
 
   function applyFilter(resetPage) {
-    if (resetPage) currentPage = 1;
+    if (resetPage) {
+      currentPage = 1;
+      saveLibraryPage();
+    }
     const q = searchInput.value.trim().toLowerCase();
 
     let matches = allBooks;
@@ -319,7 +350,7 @@
       searchRow.hidden = false;
       favRow.hidden = false;
       updateFavCount();
-      applyFilter(true);
+      applyFilter(false);
     } catch (err) {
       grid.innerHTML = `
         <div class="error-box">

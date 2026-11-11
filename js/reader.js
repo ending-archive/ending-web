@@ -76,7 +76,7 @@
   //  3. If nothing matches, the whole file is one chapter.
   // ---------------------------------------------------------------------
 
-  const EXPLICIT_RE = /^-{3}\s*(.+?)\s*-{3}$/;
+  const EXPLICIT_RE = /^-{3}\s*(\S.*?)\s*-{3}$/;
 
   const WORD_NUM =
     "(?:twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)(?:[- ](?:one|two|three|four|five|six|seven|eight|nine))?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|hundred";
@@ -92,7 +92,10 @@
   );
   const SPECIAL_RE =
     /^(?:prologue|epilogue|preface|foreword|introduction|afterword|interlude|author'?s note)\b.{0,60}$/i;
-  const BARE_NUM_RE = new RegExp(`^(?:\\d{1,4}|${ROMAN})\\.?$`, "i");
+  const BARE_NUM_RE = new RegExp(
+    `^(?:\\d{1,4}|${ROMAN.toUpperCase()})\\.?$`,
+    "i",
+  );
   const CJK_RE = /^第\s*[0-9一二三四五六七八九十百零〇]+\s*[章話话節节回幕部]/;
 
   function isImplicitHeading(line) {
@@ -101,7 +104,8 @@
       KEYWORD_RE.test(line) ||
       SPECIAL_RE.test(line) ||
       BARE_NUM_RE.test(line) ||
-      CJK_RE.test(line)
+      CJK_RE.test(line) ||
+      /\w/.test(line)
     );
   }
 
@@ -345,6 +349,10 @@
     el.surface.innerHTML = `<div class="state-box"><span class="dot"></span> ${message}</div>`;
   }
 
+  function jumpTo(y) {
+    window.scrollTo({ top: y, left: 0, behavior: "instant" });
+  }
+
   function renderError(message) {
     el.surface.innerHTML = `<div class="state-box">${escapeHtml(message)}<br><br>
         <a href="index.html" class="nav-btn">Back to the archive</a></div>`;
@@ -365,7 +373,7 @@
 
     el.surface.innerHTML = `
         <div class="reader-page">
-          <div class="chapter-eyebrow">Chapter ${chapterIndex + 1} of ${total}</div>
+          <div class="chapter-eyebrow">Page ${chapterIndex + 1} of ${total}</div>
           <h1 class="chapter-title">${escapeHtml(title)}</h1>
           <div class="chapter-body font-${settings.font}">${paragraphize(chapter.text)}</div>
           <div class="chapter-nav">
@@ -378,15 +386,15 @@
     applySettings();
 
     document.getElementById("prevBtn").addEventListener("click", () => {
-      window.scrollTo(0, 0);
+      jumpTo(0);
       loadChapter(chapterIndex - 1, false);
     });
     document.getElementById("nextBtn").addEventListener("click", () => {
-      window.scrollTo(0, 0);
+      jumpTo(0);
       loadChapter(chapterIndex + 1, false);
     });
     document.getElementById("chapterSelect").addEventListener("change", (e) => {
-      window.scrollTo(0, 0);
+      jumpTo(0);
       loadChapter(parseInt(e.target.value, 10), false);
     });
 
@@ -394,10 +402,10 @@
       const saved = loadProgress(bookId);
       if (saved && saved.chapterIndex === chapterIndex) {
         const max = document.documentElement.scrollHeight - window.innerHeight;
-        window.scrollTo(0, max * (saved.scrollFraction || 0));
+        jumpTo(max * (saved.scrollFraction || 0));
       }
     } else {
-      window.scrollTo(0, 0);
+      jumpTo(0);
     }
 
     updateProgressUI();
@@ -448,11 +456,19 @@
       applySettings();
 
       const saved = loadProgress(bookId);
-      const startIndex = saved ? saved.chapterIndex : 0;
+      const startIndex = Number.isInteger(saved?.chapterIndex)
+        ? saved.chapterIndex
+        : 0;
       loadChapter(startIndex, true);
 
       window.addEventListener("scroll", onScroll, { passive: true });
       window.addEventListener("beforeunload", persistProgress);
+      window.addEventListener("pagehide", persistProgress);
+      document.addEventListener("visibilitychange", () => {
+        if (document.hidden) persistProgress();
+      });
+
+      document.title = `${fallbackTitle} | 3NDING`;
     } catch (err) {
       renderError(`Something went wrong (${err.message}).`);
     }
