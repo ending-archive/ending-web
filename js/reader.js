@@ -59,7 +59,7 @@
   //
   //  1. EXPLICIT:   --- Chapter Title ---
   //     If a book contains at least one of these, ONLY these are used.
-  //     (Your own markup always wins, so nothing in the prose can
+  //     (Own markup always wins, so nothing in the prose can
   //     accidentally split a chapter.)
   //
   //  2. IMPLICIT (only when there are no explicit headings). A line counts

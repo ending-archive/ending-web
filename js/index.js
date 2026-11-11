@@ -18,8 +18,8 @@
   const drawerCloseBtn = document.getElementById("drawerCloseBtn");
 
   const SKELETON_COUNT = 10;
-  const MIN_LOADING_MS = 450; // keeps the skeleton from flashing on fast connections
-  const PAGE_SIZE = 10; // books shown per page; keeps pagination visibly working even on a small catalog
+  const MIN_LOADING_MS = 300; 
+  const PAGE_SIZE = 10;
   const FAVORITES_KEY = "ending:favorites";
 
   let allBooks = [];
@@ -51,7 +51,6 @@
       if (!raw) return new Map();
       const parsed = JSON.parse(raw);
 
-      // Support old array format (e.g. ["1", "2"]) if upgrading
       if (Array.isArray(parsed)) {
         return new Map(parsed.map((id, index) => [String(id), index]));
       }
@@ -168,7 +167,7 @@
           <p class="card-author">${author}</p>
         </div>
         <div class="slip">
-          <span>No. ${String(book.id).padStart(3, "0")}</span>
+          <span>No. ${String(i + 1).padStart(4, "0")}</span>
         </div>
       `;
       card.querySelector(".fav-btn").addEventListener("click", (e) => {
@@ -241,7 +240,7 @@
           const timeA = favorites.get(String(a.id)) || 0;
           const timeB = favorites.get(String(b.id)) || 0;
           return timeB - timeA; // Newest favorited first
-          // (Change to `timeA - timeB` if you want oldest favorited first)
+          // (Change to `timeA - timeB` if oldest favorited first)
         });
     }
 
