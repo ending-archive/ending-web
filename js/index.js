@@ -1,9 +1,12 @@
 (function () {
   const grid = document.getElementById("grid");
+  const continueShelf = document.getElementById("continueShelf");
+  const continueGrid = document.getElementById("continueGrid");
   const status = document.getElementById("status");
   const searchRow = document.getElementById("searchRow");
   const searchInput = document.getElementById("searchInput");
   const noResults = document.getElementById("noResults");
+  const shareStatus = document.getElementById("shareStatus");
   const favRow = document.getElementById("favRow");
   const favToggle = document.getElementById("favToggle");
   const favToggleIcon = document.getElementById("favToggleIcon");
@@ -20,6 +23,7 @@
   const SKELETON_COUNT = 10;
   const MIN_LOADING_MS = 300;
   const PAGE_SIZE = 10;
+  const NEW_BADGE_DAYS = 7;
   const FAVORITES_KEY = "ending:favorites";
   const LIBRARY_PAGE_KEY = "ending:library-page";
 
@@ -43,6 +47,19 @@
           "'": "&#39;",
         })[ch],
     );
+  }
+
+  function getAddedAtTimestamp(book) {
+    if (typeof book.addedAt !== "string") return null;
+    const timestamp = Date.parse(book.addedAt);
+    return Number.isFinite(timestamp) ? timestamp : null;
+  }
+
+  function isNewArrival(book) {
+    const addedAt = getAddedAtTimestamp(book);
+    if (addedAt === null) return false;
+    const age = Date.now() - addedAt;
+    return age >= 0 && age < NEW_BADGE_DAYS * 24 * 60 * 60 * 1000;
   }
 
   // ---------- favorites persistence ----------
@@ -158,6 +175,28 @@
     }
   }
 
+  function createShareButton(book) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "share-btn";
+    button.setAttribute("aria-label", `Share ${book.title}`);
+    button.title = `Share ${book.title}`;
+    button.innerHTML = `
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="18" cy="5" r="3" />
+        <circle cx="6" cy="12" r="3" />
+        <circle cx="18" cy="19" r="3" />
+        <path d="m8.7 10.6 6.6-4.2M8.7 13.4l6.6 4.2" />
+      </svg>`;
+    button.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      shareBook(book);
+    });
+    return button;
+  }
+
   function renderBooks(books) {
     grid.innerHTML = "";
     books.forEach((book, i) => {
@@ -184,6 +223,7 @@
         </div>
         <div class="slip">
           <span>No. ${String(catalogNo).padStart(4, "0")}</span>
+          ${isNewArrival(book) ? '<span class="arrival-badge">New</span>' : ""}
         </div>
       `;
       const favoriteButton = document.createElement("button");
@@ -201,8 +241,177 @@
         e.stopPropagation();
         toggleFavorite(id);
       });
-      card.append(cardLink, favoriteButton);
+
+      card.append(cardLink, favoriteButton, createShareButton(book));
       grid.appendChild(card);
+    });
+  }
+
+  async function copyBookLink(url) {
+    if (navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(url);
+        return true;
+      } catch {
+        // Try the legacy copy method if clipboard access is denied.
+      }
+    }
+
+    const input = document.createElement("textarea");
+    input.value = url;
+    input.setAttribute("readonly", "");
+    input.style.position = "fixed";
+    input.style.opacity = "0";
+    document.body.append(input);
+    let copied = false;
+    try {
+      input.select();
+      copied = document.execCommand("copy");
+    } finally {
+      input.remove();
+    }
+    return copied;
+  }
+
+  function showShareStatus(message) {
+    shareStatus.textContent = message;
+    shareStatus.hidden = false;
+    clearTimeout(showShareStatus.timer);
+    showShareStatus.timer = setTimeout(() => {
+      shareStatus.hidden = true;
+    }, 3500);
+  }
+
+  async function shareBook(book) {
+    const url = new URL("reader.html", location.href);
+    url.searchParams.set("id", book.id);
+    const shareData = {
+      title: book.title,
+      text: `Read "${book.title}" by ${book.author} on 3NDING.`,
+      url: url.href,
+    };
+
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+        showShareStatus(`Shared "${book.title}".`);
+        return;
+      } catch (error) {
+        if (error.name === "AbortError") return;
+      }
+    }
+
+    try {
+      if (await copyBookLink(url.href)) {
+        showShareStatus(`Link to "${book.title}" copied.`);
+        return;
+      }
+    } catch {
+      // Offer manual copying if both browser sharing and clipboard access fail.
+    }
+
+    window.prompt(`Copy the link to "${book.title}":`, url.href);
+  }
+
+  function renderContinueReading(books) {
+    const reading = [];
+    books.forEach((book) => {
+      try {
+        const raw = localStorage.getItem(`ending:progress:${book.id}`);
+        if (!raw) return;
+        const progress = JSON.parse(raw);
+        if (
+          !Number.isInteger(progress.chapterIndex) ||
+          !Number.isFinite(progress.updatedAt)
+        ) {
+          return;
+        }
+
+        const storedPercent = Number(progress.progressPercent);
+        const legacyFraction = Number(progress.scrollFraction);
+        const hasStoredPercent =
+          Number.isFinite(storedPercent) &&
+          storedPercent >= 0 &&
+          storedPercent <= 100;
+        const percent = hasStoredPercent
+          ? storedPercent
+          : Math.min(100, Math.max(0, legacyFraction * 100));
+        if (!Number.isFinite(percent) || percent >= 100) return;
+
+        reading.push({
+          book,
+          chapterIndex: progress.chapterIndex,
+          updatedAt: progress.updatedAt,
+          percent,
+          hasStoredPercent,
+        });
+      } catch {
+        // Ignore malformed or inaccessible progress entries.
+      }
+    });
+
+    reading.sort((a, b) => b.updatedAt - a.updatedAt);
+    const recent = reading.slice(0, 3);
+    continueGrid.replaceChildren();
+    continueShelf.hidden = recent.length === 0;
+
+    recent.forEach(({ book, chapterIndex, percent, hasStoredPercent }) => {
+      const card = document.createElement("article");
+      card.className = "continue-card";
+      const link = document.createElement("a");
+      link.className = "continue-card-link";
+      link.href = `reader.html?id=${encodeURIComponent(book.id)}`;
+      link.setAttribute(
+        "aria-label",
+        hasStoredPercent
+          ? `Continue reading ${book.title} by ${book.author}, ${Math.round(percent)} percent`
+          : `Continue reading ${book.title} by ${book.author}, chapter ${chapterIndex + 1}, ${Math.round(percent)} percent through the chapter`,
+      );
+
+      const cover = document.createElement("img");
+      cover.className = "continue-cover";
+      cover.src = book.cover;
+      cover.alt = "";
+      cover.loading = "lazy";
+
+      const details = document.createElement("span");
+      details.className = "continue-details";
+
+      const title = document.createElement("span");
+      title.className = "continue-title";
+      title.textContent = book.title;
+
+      const author = document.createElement("span");
+      author.className = "continue-author";
+      author.textContent = book.author;
+
+      const progressLabel = document.createElement("span");
+      progressLabel.className = "continue-progress-label";
+      progressLabel.textContent = hasStoredPercent
+        ? `${Math.round(percent)}% read`
+        : `Chapter ${chapterIndex + 1}`;
+
+      const track = document.createElement("span");
+      track.className = "continue-track";
+      track.setAttribute("role", "progressbar");
+      track.setAttribute(
+        "aria-label",
+        hasStoredPercent
+          ? `${book.title} reading progress`
+          : `${book.title} chapter ${chapterIndex + 1} progress`,
+      );
+      track.setAttribute("aria-valuemin", "0");
+      track.setAttribute("aria-valuemax", "100");
+      track.setAttribute("aria-valuenow", String(Math.round(percent)));
+
+      const fill = document.createElement("span");
+      fill.className = "continue-fill";
+      fill.style.width = `${percent}%`;
+      track.append(fill);
+      details.append(title, author, progressLabel, track);
+      link.append(cover, details);
+      card.append(link, createShareButton(book));
+      continueGrid.append(card);
     });
   }
 
@@ -346,7 +555,21 @@
         return;
       }
 
-      allBooks = books;
+      allBooks = books
+        .map((book, index) => ({
+          book,
+          index,
+          addedAt: getAddedAtTimestamp(book),
+        }))
+        .sort((a, b) => {
+          if (a.addedAt === null) {
+            return b.addedAt === null ? a.index - b.index : 1;
+          }
+          if (b.addedAt === null) return -1;
+          return b.addedAt - a.addedAt || a.index - b.index;
+        })
+        .map(({ book }) => book);
+      renderContinueReading(allBooks);
       searchRow.hidden = false;
       favRow.hidden = false;
       updateFavCount();

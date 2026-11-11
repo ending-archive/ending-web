@@ -45,6 +45,28 @@
         <div class="topbar-title" id="topbarTitle">Loading…</div>
         <div class="progress-pct" id="progressPct">0%</div>
         <button
+          type="button"
+          class="share-btn"
+          id="shareBtn"
+          aria-label="Share this book"
+          title="Share this book"
+        >
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <circle cx="18" cy="5" r="3" />
+            <circle cx="6" cy="12" r="3" />
+            <circle cx="18" cy="19" r="3" />
+            <path d="m8.7 10.6 6.6-4.2M8.7 13.4l6.6 4.2" />
+          </svg>
+        </button>
+        <button
           class="settings-btn"
           id="settingsBtn"
           aria-label="Reading settings"
@@ -54,6 +76,13 @@
         </button>
       </div>
     </div>
+    <div
+      class="share-toast"
+      id="shareStatus"
+      role="status"
+      aria-live="polite"
+      hidden
+    ></div>
 
     <div class="drawer-backdrop" id="drawerBackdrop"></div>
     <aside class="drawer" id="drawer" aria-label="Reading settings">

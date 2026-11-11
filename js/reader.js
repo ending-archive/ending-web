@@ -19,6 +19,8 @@
     topbarTitle: document.getElementById("topbarTitle"),
     progressFill: document.getElementById("progressFill"),
     progressPct: document.getElementById("progressPct"),
+    shareBtn: document.getElementById("shareBtn"),
+    shareStatus: document.getElementById("shareStatus"),
     settingsBtn: document.getElementById("settingsBtn"),
     drawerCloseBtn: document.getElementById("drawerCloseBtn"),
     backLink: document.getElementById("backLink"),
@@ -298,6 +300,73 @@
   el.backdrop.addEventListener("click", closeDrawer);
   el.drawerCloseBtn.addEventListener("click", closeDrawer);
 
+  let shareToastTimer;
+  function showShareToast(message) {
+    el.shareStatus.textContent = message;
+    el.shareStatus.hidden = false;
+    clearTimeout(shareToastTimer);
+    shareToastTimer = setTimeout(() => {
+      el.shareStatus.hidden = true;
+    }, 3500);
+  }
+
+  async function copyShareLink(url) {
+    if (navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(url);
+        return;
+      } catch {
+        // Continue to the selection-based fallback when clipboard access is denied.
+      }
+    }
+
+    const input = document.createElement("textarea");
+    input.value = url;
+    input.setAttribute("readonly", "");
+    input.style.position = "fixed";
+    input.style.opacity = "0";
+    document.body.append(input);
+    let copied;
+    try {
+      input.select();
+      copied = document.execCommand("copy");
+    } finally {
+      input.remove();
+    }
+    if (!copied) throw new Error("Copying the link is not supported.");
+  }
+
+  el.shareBtn.addEventListener("click", async () => {
+    if (!bookMeta || !bookId) return;
+    el.shareStatus.textContent = "";
+    el.shareStatus.hidden = true;
+
+    const url = new URL("reader.html", location.href);
+    url.searchParams.set("id", bookId);
+    const shareData = {
+      title: bookMeta.title,
+      text: `Read "${bookMeta.title}" by ${bookMeta.author} on 3NDING.`,
+      url: url.href,
+    };
+
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+        showShareToast("Book shared.");
+        return;
+      } catch (error) {
+        if (error.name === "AbortError") return;
+      }
+    }
+
+    try {
+      await copyShareLink(url.href);
+      showShareToast("Book link copied to clipboard.");
+    } catch {
+      showShareToast("Unable to copy the book link.");
+    }
+  });
+
   // ---------- progress persistence ----------
   function progressKey(id) {
     return "ending:progress:" + id;
@@ -350,6 +419,7 @@
     saveProgress(bookId, {
       chapterIndex,
       scrollFraction: scrollFraction(),
+      progressPercent: overallPercent(),
       updatedAt: Date.now(),
     });
   }

@@ -1,6 +1,7 @@
 [
   {
     "id": "cartographers-daughter",
+    "addedAt": "2026-11-11",
     "title": "The Cartographer's Daughter",
     "author": "Eleanor Whitfield",
     "cover": "https://picsum.photos/seed/book-cartographers-daughter/600/800",
@@ -8,6 +9,7 @@
   },
   {
     "id": "letter-to-a-young-botanist",
+    "addedAt": "2026-11-11",
     "title": "Letters to a Young Botanist",
     "author": "H. T. Marwick",
     "cover": "https://picsum.photos/seed/book-letters-botanist/600/800",
@@ -15,6 +17,7 @@
   },
   {
     "id": "of-silent-things",
+    "addedAt": "2026-11-11",
     "title": "Of Silent Things",
     "author": "Yuki Tawara",
     "cover": "https://picsum.photos/seed/book-silent-things/600/800",
@@ -22,6 +25,7 @@
   },
   {
     "id": "year-of-long-afternoons",
+    "addedAt": "2026-11-11",
     "title": "The Year of Long Afternoons",
     "author": "Marco Bianchi",
     "cover": "https://picsum.photos/seed/book-long-afternoons/600/800",
@@ -29,6 +33,7 @@
   },
   {
     "id": "anatomy-of-a-quiet-room",
+    "addedAt": "2026-11-11",
     "title": "Anatomy of a Quiet Room",
     "author": "Iris Cole",
     "cover": "https://picsum.photos/seed/book-quiet-room/600/800",
@@ -36,6 +41,7 @@
   },
   {
     "id": "last-lighthouse-keeper",
+    "addedAt": "2026-11-11",
     "title": "The Last Lighthouse Keeper",
     "author": "A. F. Pemberton",
     "cover": "https://picsum.photos/seed/book-lighthouse-keeper/600/800",
@@ -43,6 +49,7 @@
   },
   {
     "id": "field-notes-from-the-edge",
+    "addedAt": "2026-11-11",
     "title": "Field Notes from the Edge",
     "author": "Tobias Lyle",
     "cover": "https://picsum.photos/seed/book-field-notes-edge/600/800",
@@ -50,6 +57,7 @@
   },
   {
     "id": "glasshouse-years",
+    "addedAt": "2026-11-11",
     "title": "The Glasshouse Years",
     "author": "Petra Holm",
     "cover": "https://picsum.photos/seed/book-glasshouse-years/600/800",
@@ -57,6 +65,7 @@
   },
   {
     "id": "slow-water",
+    "addedAt": "2026-11-11",
     "title": "Slow Water",
     "author": "Nadia Okafor",
     "cover": "https://picsum.photos/seed/book-slow-water/600/800",
@@ -64,6 +73,7 @@
   },
   {
     "id": "pocket-book-of-hours",
+    "addedAt": "2026-11-11",
     "title": "A Pocket Book of Hours",
     "author": "Anonymous",
     "cover": "https://picsum.photos/seed/book-pocket-hours/600/800",

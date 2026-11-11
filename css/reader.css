@@ -53,10 +53,12 @@
 html {
   -webkit-text-size-adjust: 100%;
   scroll-behavior: auto;
+  overflow-x: hidden;
 }
 
 body {
   margin: 0;
+  overflow-x: hidden;
   background: var(--ink);
   color: var(--text-light);
   font-family: "Work Sans", sans-serif;
@@ -155,6 +157,7 @@ body.theme-dark {
   flex-shrink: 0;
 }
 
+.share-btn,
 .settings-btn {
   flex-shrink: 0;
   width: 32px;
@@ -168,17 +171,58 @@ body.theme-dark {
   align-items: center;
   justify-content: center;
   font-size: 1rem;
+  cursor: pointer;
   transition:
     background 0.15s ease,
     transform 0.3s ease;
 }
 
+.share-btn {
+  padding: 0;
+}
+
+.share-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.share-btn:hover,
 .settings-btn:hover {
   background: rgba(184, 146, 63, 0.12);
 }
 
+.share-btn:focus-visible,
+.settings-btn:focus-visible {
+  outline: 2px solid var(--brass-bright);
+  outline-offset: 2px;
+}
+
 .settings-btn.open {
   transform: rotate(35deg);
+}
+
+.share-toast {
+  position: fixed;
+  left: 50%;
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  z-index: 40;
+  width: max-content;
+  max-width: calc(100vw - 2rem);
+  padding: 0.7rem 1rem;
+  transform: translateX(-50%);
+  background: var(--ink-soft);
+  border: 1px solid rgba(184, 146, 63, 0.45);
+  border-radius: var(--radius);
+  color: var(--text-light);
+  font-family: "Space Mono", monospace;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.share-toast[hidden] {
+  display: none;
 }
 
 /* ---------- Settings drawer ---------- */
