@@ -4,6 +4,9 @@
 
   const SETTINGS_KEY = "ending:settings";
   const READING_DAYS_KEY = "ending:reading-days";
+  const ANNOTATIONS_KEY = "ending:annotations:";
+  const MAX_ANNOTATIONS = 100;
+  const MAX_HIGHLIGHT_LENGTH = 1200;
   const DEFAULT_SETTINGS = {
     font: "serif",
     size: 17,
@@ -21,7 +24,14 @@
     progressFill: document.getElementById("progressFill"),
     progressPct: document.getElementById("progressPct"),
     shareBtn: document.getElementById("shareBtn"),
+    bookmarkBtn: document.getElementById("bookmarkBtn"),
     shareStatus: document.getElementById("shareStatus"),
+    notesDrawer: document.getElementById("notesDrawer"),
+    notesCloseBtn: document.getElementById("notesCloseBtn"),
+    notesList: document.getElementById("notesList"),
+    exportNotesBtn: document.getElementById("exportNotesBtn"),
+    openNotesBtn: document.getElementById("openNotesBtn"),
+    highlightSelectionBtn: document.getElementById("highlightSelectionBtn"),
     settingsBtn: document.getElementById("settingsBtn"),
     drawerCloseBtn: document.getElementById("drawerCloseBtn"),
     backLink: document.getElementById("backLink"),
@@ -46,6 +56,7 @@
   let dirty = false;
   let finished = false;
   let suppressScrollEvents = false;
+  let annotations = { bookmarks: [], highlights: [] };
 
   function escapeHtml(str) {
     return String(str).replace(
@@ -61,7 +72,7 @@
     );
   }
 
-  const EXPLICIT_RE = /^-{3}\s*(\S.*?)\s*-{3}$/;
+  const EXPLICIT_RE = /^-{3}\s*([^\s-].*?)\s*-{3}$/;
 
   const WORD_NUM =
     "(?:twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)(?:[- ](?:one|two|three|four|five|six|seven|eight|nine))?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|hundred";
@@ -156,16 +167,31 @@
       .map((b) => b.trim())
       .filter(Boolean);
 
+    let paragraphIndex = 0;
     if (blocks.length === 1) {
       const ls = blocks[0]
         .split("\n")
         .map((l) => l.trim())
         .filter(Boolean);
       if (ls.length > 1 && ls.some((l) => l.length > 100)) {
-        return ls.map((l) => `<p>${escapeHtml(l)}</p>`).join("");
+        return ls
+          .map(
+            (line) =>
+              `<p data-paragraph="${paragraphIndex++}">${escapeHtml(line)}</p>`,
+          )
+          .join("");
       }
     }
-    return blocks.map(blockToHtml).join("");
+    return blocks
+      .map((block) => {
+        const html = blockToHtml(block).replace(
+          /^<p>/,
+          `<p data-paragraph="${paragraphIndex}">`,
+        );
+        paragraphIndex += 1;
+        return html;
+      })
+      .join("");
   }
 
   // ---------- settings persistence ----------
@@ -262,15 +288,285 @@
     el.settingsBtn.classList.remove("open");
     el.settingsBtn.setAttribute("aria-expanded", "false");
   }
+  function openNotesDrawer() {
+    closeDrawer();
+    renderNotes();
+    el.notesDrawer.classList.add("open");
+    el.notesDrawer.setAttribute("aria-hidden", "false");
+    el.backdrop.classList.add("visible");
+  }
+  function closeNotesDrawer() {
+    el.notesDrawer.classList.remove("open");
+    el.notesDrawer.setAttribute("aria-hidden", "true");
+    if (!el.drawer.classList.contains("open"))
+      el.backdrop.classList.remove("visible");
+  }
   el.settingsBtn.addEventListener("click", () => {
+    closeNotesDrawer();
     el.drawer.classList.contains("open") ? closeDrawer() : openDrawer();
   });
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && el.drawer.classList.contains("open"))
+    if (e.key === "Escape") {
       closeDrawer();
+      closeNotesDrawer();
+      hideHighlightAction();
+    }
   });
-  el.backdrop.addEventListener("click", closeDrawer);
+  el.backdrop.addEventListener("click", () => {
+    closeDrawer();
+    closeNotesDrawer();
+  });
   el.drawerCloseBtn.addEventListener("click", closeDrawer);
+  el.notesCloseBtn.addEventListener("click", closeNotesDrawer);
+  el.openNotesBtn.addEventListener("click", openNotesDrawer);
+
+  function annotationKey(id) {
+    return ANNOTATIONS_KEY + id;
+  }
+
+  function validAnnotationId(value) {
+    return typeof value === "string" && /^[\w-]{1,100}$/.test(value);
+  }
+
+  function loadAnnotations() {
+    try {
+      const raw = localStorage.getItem(annotationKey(bookId));
+      const saved = raw ? JSON.parse(raw) : {};
+      if (!saved || typeof saved !== "object" || Array.isArray(saved))
+        return { bookmarks: [], highlights: [] };
+      const bookmarks = Array.isArray(saved.bookmarks)
+        ? saved.bookmarks
+            .filter(
+              (item) =>
+                item &&
+                validAnnotationId(item.id) &&
+                Number.isInteger(item.chapterIndex) &&
+                item.chapterIndex >= 0 &&
+                item.chapterIndex < chapters.length &&
+                Number.isFinite(item.fraction) &&
+                item.fraction >= 0 &&
+                item.fraction <= 1,
+            )
+            .slice(0, MAX_ANNOTATIONS)
+        : [];
+      const highlights = Array.isArray(saved.highlights)
+        ? saved.highlights
+            .filter(
+              (item) =>
+                item &&
+                validAnnotationId(item.id) &&
+                Number.isInteger(item.chapterIndex) &&
+                item.chapterIndex >= 0 &&
+                item.chapterIndex < chapters.length &&
+                Number.isInteger(item.paragraphIndex) &&
+                item.paragraphIndex >= 0 &&
+                Number.isInteger(item.start) &&
+                item.start >= 0 &&
+                Number.isInteger(item.end) &&
+                item.end > item.start &&
+                item.end - item.start <= MAX_HIGHLIGHT_LENGTH &&
+                typeof item.text === "string" &&
+                item.text.length > 0 &&
+                item.text.length <= MAX_HIGHLIGHT_LENGTH,
+            )
+            .slice(0, MAX_ANNOTATIONS)
+        : [];
+      highlights.sort(
+        (a, b) =>
+          a.chapterIndex - b.chapterIndex ||
+          a.paragraphIndex - b.paragraphIndex ||
+          a.start - b.start,
+      );
+      const nonOverlappingHighlights = [];
+      highlights.forEach((item) => {
+        const overlaps = nonOverlappingHighlights.some(
+          (existing) =>
+            existing.chapterIndex === item.chapterIndex &&
+            existing.paragraphIndex === item.paragraphIndex &&
+            item.start < existing.end &&
+            item.end > existing.start,
+        );
+        if (!overlaps) nonOverlappingHighlights.push(item);
+      });
+      return { bookmarks, highlights: nonOverlappingHighlights };
+    } catch {
+      showShareToast("Saved passages couldn't be read from this device.");
+      return { bookmarks: [], highlights: [] };
+    }
+  }
+
+  function saveAnnotations(next) {
+    try {
+      localStorage.setItem(annotationKey(bookId), JSON.stringify(next));
+    } catch {
+      showShareToast("Saved passages couldn't be stored on this device.");
+      return false;
+    }
+    annotations = next;
+    renderNotes();
+    updateNotesButtons();
+    return true;
+  }
+
+  function updateNotesButtons() {
+    const count = annotations.bookmarks.length + annotations.highlights.length;
+    el.openNotesBtn.textContent = `Saved passages (${count})`;
+    el.surface.querySelectorAll("[data-open-notes]").forEach((button) => {
+      button.textContent = `Saved passages (${count})`;
+    });
+    el.exportNotesBtn.disabled = count === 0;
+  }
+
+  function renderNotes() {
+    const bookmarkItems = annotations.bookmarks
+      .map((item) => {
+        const title = chapters[item.chapterIndex]?.title || "Chapter";
+        return `<article class="saved-item">
+          <div class="saved-item-label">${escapeHtml(title)} · ${Math.round(item.fraction * 100)}%</div>
+          <div class="saved-item-actions">
+            <button type="button" class="saved-action" data-action="jump-bookmark" data-id="${item.id}">Go to</button>
+            <button type="button" class="saved-action" data-action="delete-bookmark" data-id="${item.id}" aria-label="Remove bookmark">Remove</button>
+          </div>
+        </article>`;
+      })
+      .join("");
+    const highlightItems = annotations.highlights
+      .map((item) => {
+        const title = chapters[item.chapterIndex]?.title || "Chapter";
+        return `<article class="saved-item">
+          <blockquote class="saved-quote">${escapeHtml(item.text)}</blockquote>
+          <div class="saved-item-label">${escapeHtml(title)}</div>
+          <div class="saved-item-actions">
+            <button type="button" class="saved-action" data-action="jump-highlight" data-id="${item.id}">Go to</button>
+            <button type="button" class="saved-action" data-action="share-highlight" data-id="${item.id}">Quote image</button>
+            <button type="button" class="saved-action" data-action="delete-highlight" data-id="${item.id}" aria-label="Remove highlight">Remove</button>
+          </div>
+        </article>`;
+      })
+      .join("");
+
+    el.notesList.innerHTML = `
+      <section class="saved-section" aria-labelledby="bookmarksHeading">
+        <h3 id="bookmarksHeading">Bookmarks <span>${annotations.bookmarks.length}</span></h3>
+        ${bookmarkItems || '<p class="saved-empty">No bookmarks yet.</p>'}
+      </section>
+      <section class="saved-section" aria-labelledby="highlightsHeading">
+        <h3 id="highlightsHeading">Highlights <span>${annotations.highlights.length}</span></h3>
+        ${highlightItems || '<p class="saved-empty">Select a passage while reading to highlight it.</p>'}
+      </section>`;
+    updateNotesButtons();
+  }
+
+  function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  el.notesList.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-action]");
+    if (!button) return;
+    const { action, id } = button.dataset;
+    if (action === "delete-bookmark" || action === "delete-highlight") {
+      const key = action === "delete-bookmark" ? "bookmarks" : "highlights";
+      saveAnnotations({
+        ...annotations,
+        [key]: annotations[key].filter((item) => item.id !== id),
+      });
+      return;
+    }
+    if (action === "jump-bookmark") {
+      const bookmark = annotations.bookmarks.find((item) => item.id === id);
+      if (!bookmark) return;
+      closeNotesDrawer();
+      loadChapter(bookmark.chapterIndex, false, false);
+      document.fonts.ready.then(() => {
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => {
+            const max =
+              document.documentElement.scrollHeight - window.innerHeight;
+            suppressScrollEvents = true;
+            window.scrollTo({
+              top: Math.max(0, max) * bookmark.fraction,
+              left: 0,
+              behavior: "instant",
+            });
+            requestAnimationFrame(() => {
+              suppressScrollEvents = false;
+              onScroll();
+            });
+          }),
+        );
+      });
+      return;
+    }
+    if (action === "jump-highlight") {
+      const highlight = annotations.highlights.find((item) => item.id === id);
+      if (!highlight) return;
+      closeNotesDrawer();
+      if (chapterIndex !== highlight.chapterIndex)
+        loadChapter(highlight.chapterIndex, false, false);
+      requestAnimationFrame(() => {
+        const paragraph = el.surface.querySelector(
+          `[data-paragraph="${highlight.paragraphIndex}"]`,
+        );
+        if (paragraph) {
+          paragraph.scrollIntoView({ block: "center", behavior: "instant" });
+          onScroll();
+        }
+      });
+      return;
+    }
+    if (action === "share-highlight") {
+      const highlight = annotations.highlights.find((item) => item.id === id);
+      if (!highlight) return;
+      button.disabled = true;
+      try {
+        await shareQuoteImage(
+          highlight.text,
+          `${bookId}-highlight.png`,
+          `A line from ${bookMeta?.title || "this book"}`,
+        );
+      } finally {
+        button.disabled = false;
+      }
+    }
+  });
+
+  el.exportNotesBtn.addEventListener("click", () => {
+    if (!bookMeta || !annotations.bookmarks.length && !annotations.highlights.length)
+      return;
+    const lines = [
+      `${bookMeta.title}${bookMeta.author ? ` by ${bookMeta.author}` : ""}`,
+      "Saved passages",
+      "",
+      "BOOKMARKS",
+      ...annotations.bookmarks.map((item) => {
+        const title = chapters[item.chapterIndex]?.title || "Chapter";
+        return `- ${title} (${Math.round(item.fraction * 100)}% through chapter)`;
+      }),
+      "",
+      "HIGHLIGHTS",
+      ...annotations.highlights.map((item) => {
+        const title = chapters[item.chapterIndex]?.title || "Chapter";
+        return `- ${title}\n  “${item.text.replace(/\s+/g, " ").trim()}”`;
+      }),
+      "",
+    ];
+    try {
+      const safeId = String(bookId).replace(/[^\w-]/g, "-");
+      downloadBlob(
+        new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" }),
+        `${safeId}-saved-passages.txt`,
+      );
+      showShareToast("Saved passages exported as a text file.");
+    } catch {
+      showShareToast("Unable to export saved passages.");
+    }
+  });
 
   let shareToastTimer;
   function showShareToast(message) {
@@ -392,10 +688,7 @@
     if (days.includes(today)) return;
     days.push(today);
     try {
-      localStorage.setItem(
-        READING_DAYS_KEY,
-        JSON.stringify(days.sort()),
-      );
+      localStorage.setItem(READING_DAYS_KEY, JSON.stringify(days.sort()));
     } catch {}
   }
 
@@ -448,6 +741,239 @@
     saveTimer = setTimeout(persistProgress, 250);
   }
 
+  function makeAnnotationId() {
+    return globalThis.crypto?.randomUUID
+      ? globalThis.crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }
+
+  function addBookmark() {
+    if (annotations.bookmarks.length >= MAX_ANNOTATIONS) {
+      showShareToast("You’ve reached the bookmark limit for this book.");
+      return;
+    }
+    const max = document.documentElement.scrollHeight - window.innerHeight;
+    const fraction =
+      max <= 0 ? 0 : Math.min(1, Math.max(0, window.scrollY / max));
+    const existing = annotations.bookmarks.some(
+      (item) =>
+        item.chapterIndex === chapterIndex &&
+        Math.abs(item.fraction - fraction) < 0.012,
+    );
+    if (existing) {
+      showShareToast("There’s already a bookmark near this spot.");
+      return;
+    }
+    if (
+      saveAnnotations({
+        ...annotations,
+        bookmarks: [
+          ...annotations.bookmarks,
+          { id: makeAnnotationId(), chapterIndex, fraction, createdAt: Date.now() },
+        ],
+      })
+    ) {
+      showShareToast("Bookmark saved.");
+    }
+  }
+  el.bookmarkBtn.addEventListener("click", addBookmark);
+
+  function hideHighlightAction() {
+    el.highlightSelectionBtn.hidden = true;
+  }
+
+  function updateHighlightAction() {
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed || !selection.rangeCount) {
+      hideHighlightAction();
+      return;
+    }
+    const range = selection.getRangeAt(0);
+    const startElement =
+      range.startContainer.nodeType === Node.ELEMENT_NODE
+        ? range.startContainer
+        : range.startContainer.parentElement;
+    const endElement =
+      range.endContainer.nodeType === Node.ELEMENT_NODE
+        ? range.endContainer
+        : range.endContainer.parentElement;
+    const startParagraph = startElement?.closest(
+      ".chapter-body [data-paragraph]",
+    );
+    const endParagraph = endElement?.closest(".chapter-body [data-paragraph]");
+    const text = selection.toString().trim();
+    if (
+      !startParagraph ||
+      startParagraph !== endParagraph ||
+      !text ||
+      text.length > MAX_HIGHLIGHT_LENGTH ||
+      !el.surface.contains(startParagraph)
+    ) {
+      hideHighlightAction();
+      return;
+    }
+    const fragment = range.cloneContents();
+    if (
+      fragment.querySelector?.("br, .text-highlight")
+    ) {
+      hideHighlightAction();
+      return;
+    }
+    const rect = range.getBoundingClientRect();
+    const button = el.highlightSelectionBtn;
+    button.hidden = false;
+    const left = Math.min(
+      Math.max(8, rect.left + rect.width / 2 - button.offsetWidth / 2),
+      window.innerWidth - button.offsetWidth - 8,
+    );
+    button.style.left = `${left}px`;
+    button.style.top = `${Math.max(8, rect.top - button.offsetHeight - 10)}px`;
+  }
+
+  let selectionTimer;
+  document.addEventListener("selectionchange", () => {
+    clearTimeout(selectionTimer);
+    selectionTimer = setTimeout(updateHighlightAction, 40);
+  });
+  window.addEventListener("scroll", hideHighlightAction, { passive: true });
+  window.addEventListener("resize", hideHighlightAction);
+  el.highlightSelectionBtn.addEventListener("mousedown", (event) => {
+    event.preventDefault();
+  });
+  el.highlightSelectionBtn.addEventListener("click", () => {
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed || !selection.rangeCount) return;
+    const range = selection.getRangeAt(0);
+    const startElement =
+      range.startContainer.nodeType === Node.ELEMENT_NODE
+        ? range.startContainer
+        : range.startContainer.parentElement;
+    const paragraph = startElement?.closest(
+      ".chapter-body [data-paragraph]",
+    );
+    if (!paragraph || !el.surface.contains(paragraph)) return;
+    const startPrefix = document.createRange();
+    startPrefix.selectNodeContents(paragraph);
+    startPrefix.setEnd(range.startContainer, range.startOffset);
+    const start = startPrefix.toString().length;
+    const endPrefix = document.createRange();
+    endPrefix.selectNodeContents(paragraph);
+    endPrefix.setEnd(range.endContainer, range.endOffset);
+    const end = endPrefix.toString().length;
+    const text = range.toString();
+    const paragraphIndex = Number(paragraph.dataset.paragraph);
+    const overlaps = annotations.highlights.some(
+      (item) =>
+        item.chapterIndex === chapterIndex &&
+        item.paragraphIndex === paragraphIndex &&
+        start < item.end &&
+        end > item.start,
+    );
+    if (overlaps) {
+      hideHighlightAction();
+      selection.removeAllRanges();
+      showShareToast("That passage overlaps an existing highlight.");
+      return;
+    }
+    if (
+      end <= start ||
+      end - start !== text.length ||
+      paragraph.textContent.slice(start, end) !== text
+    ) {
+      hideHighlightAction();
+      showShareToast("That selection can’t be highlighted accurately.");
+      return;
+    }
+    if (
+      annotations.highlights.length >= MAX_ANNOTATIONS ||
+      !text.trim() ||
+      text.length > MAX_HIGHLIGHT_LENGTH
+    ) {
+      hideHighlightAction();
+      showShareToast(
+        annotations.highlights.length >= MAX_ANNOTATIONS
+          ? "You’ve reached the highlight limit for this book."
+          : "Select a shorter passage to highlight.",
+      );
+      return;
+    }
+    const highlight = {
+      id: makeAnnotationId(),
+      chapterIndex,
+      paragraphIndex,
+      start,
+      end,
+      text,
+      createdAt: Date.now(),
+    };
+    const highlightRange = createTextRange(paragraph, start, end);
+    if (!highlightRange) {
+      showShareToast("That selection can’t be highlighted accurately.");
+      return;
+    }
+    if (
+      !saveAnnotations({
+        ...annotations,
+        highlights: [...annotations.highlights, highlight],
+      })
+    )
+      return;
+    wrapHighlight(highlightRange);
+    hideHighlightAction();
+    selection.removeAllRanges();
+    showShareToast("Passage highlighted.");
+  });
+
+  function createTextRange(paragraph, start, end) {
+    const walker = document.createTreeWalker(paragraph, NodeFilter.SHOW_TEXT);
+    const nodes = [];
+    let node;
+    let offset = 0;
+    while ((node = walker.nextNode())) {
+      nodes.push({ node, start: offset, end: offset + node.textContent.length });
+      offset += node.textContent.length;
+    }
+    if (start < 0 || end <= start || end > offset) return null;
+    const startNode = nodes.find((item) => start < item.end);
+    const endNode = nodes.find(
+      (item) => end > item.start && end <= item.end,
+    );
+    if (!startNode || !endNode) return null;
+    const range = document.createRange();
+    range.setStart(startNode.node, start - startNode.start);
+    range.setEnd(endNode.node, end - endNode.start);
+    return range;
+  }
+
+  function wrapHighlight(range) {
+    const mark = document.createElement("mark");
+    mark.className = "text-highlight";
+    mark.append(range.extractContents());
+    range.insertNode(mark);
+  }
+
+  function applyChapterHighlights() {
+    const body = el.surface.querySelector(".chapter-body");
+    if (!body) return;
+    const paragraphHighlights = annotations.highlights
+      .filter((item) => item.chapterIndex === chapterIndex)
+      .sort((a, b) => b.start - a.start);
+    paragraphHighlights.forEach((item) => {
+      const paragraph = body.querySelector(
+        `[data-paragraph="${item.paragraphIndex}"]`,
+      );
+      if (!paragraph) return;
+      const range = createTextRange(paragraph, item.start, item.end);
+      if (
+        !range ||
+        range.toString().replace(/\s+/g, " ").trim() !==
+          item.text.replace(/\s+/g, " ").trim()
+      )
+        return;
+      wrapHighlight(range);
+    });
+  }
+
   // ---------- rendering ----------
   function renderState(message) {
     el.surface.innerHTML = `<div class="state-box"><span class="dot"></span> ${message}</div>`;
@@ -485,7 +1011,10 @@
   function endingQuote() {
     const lastChapter = chapters[chapters.length - 1];
     const paragraphs = lastChapter
-      ? lastChapter.text.split(/\n\s*\n/).map((part) => part.trim()).filter(Boolean)
+      ? lastChapter.text
+          .split(/\n\s*\n/)
+          .map((part) => part.trim())
+          .filter(Boolean)
       : [];
     const text = (paragraphs[paragraphs.length - 1] || "").replace(/\s+/g, " ");
     if (text.length <= 190) return text;
@@ -559,6 +1088,7 @@
           </div>
 
           <div class="ending-actions">
+            <button type="button" class="nav-btn" data-open-notes>Saved passages (${annotations.bookmarks.length + annotations.highlights.length})</button>
             <a href="index.html" class="nav-btn">Back to the archive</a>
             <button class="nav-btn" id="restartBtn">Read again</button>
           </div>
@@ -584,42 +1114,16 @@
       });
     });
 
-    document.getElementById("shareQuoteBtn").addEventListener("click", async () => {
-      const button = document.getElementById("shareQuoteBtn");
-      button.disabled = true;
-      try {
-        const blob = await createQuoteCard();
-        const file =
-          typeof File !== "undefined"
-            ? new File([blob], `${bookId}-ending.png`, { type: "image/png" })
-            : null;
-        if (file && navigator.canShare?.({ files: [file] })) {
-          try {
-            await navigator.share({
-              files: [file],
-              title: `A line from ${bookTitle}`,
-              text: `${bookTitle} — ${bookAuthor}`,
-            });
-            showShareToast("Quote card shared.");
-            return;
-          } catch (error) {
-            if (error.name === "AbortError") return;
-          }
-        }
-
-        const url = URL.createObjectURL(blob);
-        const download = document.createElement("a");
-        download.href = url;
-        download.download = `${bookId}-ending.png`;
-        download.click();
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
-        showShareToast("Quote card downloaded as an image.");
-      } catch {
-        showShareToast("Unable to create the quote card image.");
-      } finally {
-        button.disabled = false;
-      }
+    document.getElementById("shareQuoteBtn").addEventListener("click", () => {
+      shareQuoteImage(
+        quote,
+        `${bookId}-ending.png`,
+        `A line from ${bookTitle}`,
+      );
     });
+    el.surface
+      .querySelector("[data-open-notes]")
+      .addEventListener("click", openNotesDrawer);
 
     document.getElementById("restartBtn").addEventListener("click", () => {
       finished = false;
@@ -629,54 +1133,102 @@
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   }
 
-  async function createQuoteCard() {
+  async function shareQuoteImage(quote, filename, title) {
+    try {
+      const blob = await createQuoteCard(quote);
+      const file =
+        typeof File !== "undefined"
+          ? new File([blob], filename, { type: "image/png" })
+          : null;
+      if (file && navigator.canShare?.({ files: [file] })) {
+        try {
+          await navigator.share({
+            files: [file],
+            title,
+            text: bookMeta?.author
+              ? `${bookMeta.title} — ${bookMeta.author}`
+              : bookMeta?.title || "",
+          });
+          showShareToast("Quote image shared.");
+          return;
+        } catch (error) {
+          if (error.name === "AbortError") return;
+        }
+      }
+
+      downloadBlob(blob, filename);
+      showShareToast("Quote image downloaded.");
+    } catch {
+      showShareToast("Unable to create the quote image.");
+    }
+  }
+
+  async function createQuoteCard(quote) {
+    await Promise.all([
+      document.fonts.load("54px Literata"),
+      document.fonts.load("24px 'Space Mono'"),
+      document.fonts.load("30px 'Work Sans'"),
+    ]);
     await document.fonts.ready;
     const canvas = document.createElement("canvas");
     canvas.width = 1200;
-    canvas.height = 1500;
     const context = canvas.getContext("2d");
     if (!context) throw new Error("Canvas is unavailable.");
 
+    context.font = "54px Literata, Georgia, serif";
+    const lines = [];
+    let line = "";
+    const maxWidth = 976;
+    const words = `“${String(quote).replace(/\s+/g, " ").trim()}”`.split(/\s+/);
+    words.forEach((word) => {
+      let candidate = line ? `${line} ${word}` : word;
+      if (context.measureText(candidate).width <= maxWidth) {
+        line = candidate;
+        return;
+      }
+      if (line) lines.push(line);
+      line = "";
+      for (const character of word) {
+        candidate = line + character;
+        if (line && context.measureText(candidate).width > maxWidth) {
+          lines.push(line);
+          line = character;
+        } else {
+          line = candidate;
+        }
+      }
+    });
+    if (line) lines.push(line);
+    const lineHeight = 82;
+    const quoteHeight = lines.length * lineHeight;
+    canvas.height = Math.max(1500, 360 + quoteHeight + 360);
     context.fillStyle = "#171b21";
     context.fillRect(0, 0, canvas.width, canvas.height);
     context.fillStyle = "#d4ac57";
     context.fillRect(112, 112, 72, 4);
     context.fillStyle = "#d4ac57";
     context.font = "24px 'Space Mono', monospace";
-    context.fillText("3NDING  /  THE END", 112, 170);
+    context.fillText("3NDING  /  A LINE TO KEEP", 112, 170);
 
     context.fillStyle = "#f2e9d3";
     context.font = "54px Literata, Georgia, serif";
-    const words = `“${endingQuote()}”`.split(/\s+/);
-    const lines = [];
-    let line = "";
-    const maxWidth = 976;
-    words.forEach((word) => {
-      const candidate = line ? `${line} ${word}` : word;
-      if (line && context.measureText(candidate).width > maxWidth) {
-        lines.push(line);
-        line = word;
-      } else {
-        line = candidate;
-      }
-    });
-    if (line) lines.push(line);
-    const lineHeight = 82;
-    const quoteHeight = lines.length * lineHeight;
-    let y = Math.max(510, (canvas.height - quoteHeight) / 2);
+    context.textAlign = "center";
+    let y = Math.max(360, (canvas.height - quoteHeight) / 2);
     lines.forEach((quoteLine) => {
-      context.fillText(quoteLine, 112, y, maxWidth);
+      context.fillText(quoteLine, canvas.width / 2, y, maxWidth);
       y += lineHeight;
     });
 
     context.fillStyle = "#b8923f";
-    context.fillRect(112, 1240, 976, 1);
+    context.textAlign = "left";
+    const footerY = canvas.height - 260;
+    context.fillRect(112, footerY, 976, 1);
     context.fillStyle = "#ece4d1";
     context.font = "30px 'Work Sans', sans-serif";
-    context.fillText(bookMeta?.title || "", 112, 1310, 976);
+    context.fillText(bookMeta?.title || "", 112, footerY + 70, 976);
     context.fillStyle = "#9aa2ad";
     context.font = "24px 'Work Sans', sans-serif";
-    context.fillText(bookMeta?.author || "", 112, 1355, 976);
+    context.fillText(bookMeta?.author || "", 112, footerY + 115, 976);
 
     return new Promise((resolve, reject) => {
       canvas.toBlob((blob) => {
@@ -718,7 +1270,7 @@
         </div>`;
 
     applySettings();
-
+    applyChapterHighlights();
     document.getElementById("prevBtn").addEventListener("click", () => {
       loadChapter(chapterIndex - 1, false);
     });
@@ -747,8 +1299,11 @@
     if (restoreScroll) {
       const saved = loadProgress(bookId);
       if (saved && saved.chapterIndex === chapterIndex) {
-        const max = document.documentElement.scrollHeight - window.innerHeight;
-        jumpTo(Math.max(0, max) * (saved.scrollFraction || 0));
+        document.fonts.ready.then(() => {
+          const max =
+            document.documentElement.scrollHeight - window.innerHeight;
+          jumpTo(Math.max(0, max) * (saved.scrollFraction || 0));
+        });
       }
     } else {
       jumpTo(0);
@@ -802,6 +1357,9 @@
       }
 
       chapters = parseBook(raw, fallbackTitle);
+      annotations = loadAnnotations();
+      renderNotes();
+      el.bookmarkBtn.disabled = false;
 
       buildSpans();
 
@@ -815,6 +1373,10 @@
           ? saved.chapterIndex
           : 0;
       loadChapter(startIndex, !wasFinished, false);
+
+      setTimeout(() => {
+        if (document.visibilityState === "visible") recordReadingDay();
+      }, 5000);
 
       window.addEventListener("scroll", onScroll, { passive: true });
       window.addEventListener("beforeunload", persistProgress);

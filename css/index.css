@@ -808,7 +808,9 @@ main {
     border-color 0.15s ease;
 }
 
-.fav-btn svg {
+.fav-btn svg,
+.share-btn svg,
+.controls-toggle svg {
   width: 16px;
   height: 16px;
 }
@@ -833,11 +835,6 @@ main {
     transform 0.15s ease,
     background 0.15s ease,
     border-color 0.15s ease;
-}
-
-.share-btn svg {
-  width: 15px;
-  height: 15px;
 }
 
 .share-btn:hover {
@@ -1021,11 +1018,6 @@ footer {
   padding: 0 1rem 3.2rem;
   max-width: 1100px;
   margin: auto;
-}
-
-.footer-links {
-  gap: 0.35rem 1rem;
-  max-width: 100%;
 }
 
 .footer-links a {

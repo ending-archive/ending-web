@@ -8,12 +8,12 @@
     "file": "books/cartographers-daughter.txt"
   },
   {
-    "id": "letter-to-a-young-botanist",
+    "id": "letters-to-a-young-botanist",
     "addedAt": "2026-11-11",
     "title": "Letters to a Young Botanist",
     "author": "H. T. Marwick",
     "cover": "https://picsum.photos/seed/book-letters-botanist/600/800",
-    "file": "books/letter-to-a-young-botanist.txt"
+    "file": "books/letters-to-a-young-botanist.txt"
   },
   {
     "id": "of-silent-things",

@@ -37,7 +37,9 @@
     <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png" />
     <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png" />
+  </head>
 
+  <body class="theme-paper">
     <script>
       try {
         const s = JSON.parse(localStorage.getItem("ending:settings") || "{}");
@@ -45,9 +47,6 @@
           document.body.className = "theme-" + s.theme;
       } catch {}
     </script>
-  </head>
-
-  <body class="theme-paper">
     <div class="topbar">
       <div class="progress-track">
         <div class="progress-fill" id="progressFill"></div>
@@ -79,12 +78,49 @@
           </svg>
         </button>
         <button
+          type="button"
+          class="share-btn bookmark-btn"
+          id="bookmarkBtn"
+          aria-label="Bookmark this spot"
+          title="Bookmark this spot"
+          disabled
+        >
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M6 3.75h12v17l-6-3.5-6 3.5z" />
+          </svg>
+        </button>
+        <button
           class="settings-btn"
           id="settingsBtn"
           aria-label="Reading settings"
+          title="Reader settings"
           aria-expanded="false"
         >
-          &#9881;
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="lucide lucide-settings preview-icon"
+          >
+            <path
+              d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"
+            />
+            <circle cx="12" cy="12" r="3" />
+          </svg>
         </button>
       </div>
     </div>
@@ -104,8 +140,23 @@
           class="drawer-close"
           id="drawerCloseBtn"
           aria-label="Close settings"
+          title="Close settings"
         >
-          &#10005;
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="lucide lucide-x preview-icon"
+          >
+            <path d="M18 6 6 18" />
+            <path d="m6 6 12 12" />
+          </svg>
         </button>
       </div>
 
@@ -148,7 +199,43 @@
         </div>
       </div>
 
+      <button class="reset-btn notes-open-btn" id="openNotesBtn" type="button">
+        Saved passages
+      </button>
       <button class="reset-btn" id="resetBtn">Reset to defaults</button>
+    </aside>
+
+    <aside
+      class="drawer notes-drawer"
+      id="notesDrawer"
+      aria-label="Bookmarks and highlights"
+      aria-hidden="true"
+    >
+      <div class="drawer-head">
+        <h2>Saved passages</h2>
+        <button
+          class="drawer-close"
+          id="notesCloseBtn"
+          aria-label="Close saved passages"
+        >
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M18 6 6 18" />
+            <path d="m6 6 12 12" />
+          </svg>
+        </button>
+      </div>
+      <div class="notes-list" id="notesList"></div>
+      <button class="reset-btn notes-export" id="exportNotesBtn" disabled>
+        Export as .txt
+      </button>
     </aside>
 
     <div class="reader-surface" id="readerSurface">
@@ -156,6 +243,14 @@
         <span class="dot"></span> Opening the book…
       </div>
     </div>
+    <button
+      type="button"
+      class="highlight-selection"
+      id="highlightSelectionBtn"
+      hidden
+    >
+      Highlight
+    </button>
 
     <script src="js/reader.js" defer></script>
   </body>

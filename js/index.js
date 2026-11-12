@@ -375,6 +375,7 @@
         "aria-label",
         `${book.title} by ${book.author}${completed ? ", finished; read again" : ""}`,
       );
+      card.title = `${book.title} by ${book.author}${completed ? ", finished; read again" : ""}`;
       cardLink.className = "card-link";
       cardLink.innerHTML = `
         <div class="cover-wrap">
@@ -404,6 +405,9 @@
         "aria-label",
         active ? "Remove from favorites" : "Add to favorites",
       );
+      favoriteButton.title = active
+        ? "Remove from favorites"
+        : "Add to favorites";
       favoriteButton.addEventListener("click", (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -604,8 +608,9 @@
       const author = card.querySelector(".card-author").textContent;
       link.setAttribute(
         "aria-label",
-        `${title} by ${author}${finished ? ", finished; read again" : ""}`,
+        `${title} by ${author}${finished ? ", Finished" : ""}`,
       );
+      link.title = `${title} by ${author}${finished ? ", Finished" : ""}`;
     });
   }
 
