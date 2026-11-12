@@ -3,6 +3,7 @@
   const bookId = params.get("id");
 
   const SETTINGS_KEY = "ending:settings";
+  const READING_DAYS_KEY = "ending:reading-days";
   const DEFAULT_SETTINGS = {
     font: "serif",
     size: 17,
@@ -36,10 +37,15 @@
   };
 
   let settings = loadSettings();
-  let chapters = []; // [{ title, text }]
+  let chapters = [];
   let bookMeta = null;
+  let catalogBooks = [];
   let chapterIndex = 0;
   let saveTimer = null;
+
+  let dirty = false;
+  let finished = false;
+  let suppressScrollEvents = false;
 
   function escapeHtml(str) {
     return String(str).replace(
@@ -54,29 +60,6 @@
         })[ch],
     );
   }
-
-  // =====================================================================
-  //  CHAPTER DETECTION
-  // =====================================================================
-  //
-  //  1. EXPLICIT:   --- Chapter Title ---
-  //     If a book contains at least one of these, ONLY these are used.
-  //     (Own markup always wins, so nothing in the prose can
-  //     accidentally split a chapter.)
-  //
-  //  2. IMPLICIT (only when there are no explicit headings). A line counts
-  //     as a heading when it is short (<= 80 chars), has a blank line
-  //     before and after it, and matches one of:
-  //       - keyword + number:  Chapter 1 / CHAPTER IV / Chapter One /
-  //                            Chapter 3: Title / Part Two / Book 2 /
-  //                            Kabanata 1 / Capítulo 4 / ...
-  //       - special sections:  Prologue, Epilogue, Preface, Foreword,
-  //                            Introduction, Afterword, Interlude
-  //       - bare numerals:     "12", "12.", "IV", "IV."
-  //       - CJK:               第1章 / 第十二話
-  //
-  //  3. If nothing matches, the whole file is one chapter.
-  // ---------------------------------------------------------------------
 
   const EXPLICIT_RE = /^-{3}\s*(\S.*?)\s*-{3}$/;
 
@@ -94,10 +77,7 @@
   );
   const SPECIAL_RE =
     /^(?:prologue|epilogue|preface|foreword|introduction|afterword|interlude|author'?s note)\b.{0,60}$/i;
-  const BARE_NUM_RE = new RegExp(
-    `^(?:\\d{1,4}|${ROMAN.toUpperCase()})\\.?$`,
-    "i",
-  );
+  const BARE_NUM_RE = new RegExp(`^(?:\\d{1,4}|${ROMAN.toUpperCase()})\\.?$`);
   const CJK_RE = /^第\s*[0-9一二三四五六七八九十百零〇]+\s*[章話话節节回幕部]/;
 
   function isImplicitHeading(line) {
@@ -106,16 +86,15 @@
       KEYWORD_RE.test(line) ||
       SPECIAL_RE.test(line) ||
       BARE_NUM_RE.test(line) ||
-      CJK_RE.test(line) ||
-      /\w/.test(line)
+      CJK_RE.test(line)
     );
   }
 
   function parseBook(raw, fallbackTitle) {
     const text = raw.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n");
     const lines = text.split("\n");
+    const wholeBook = [{ title: fallbackTitle, text: text.trim() }];
 
-    // Pass 1: find headings
     const explicit = [];
     const implicit = [];
     for (let i = 0; i < lines.length; i++) {
@@ -137,15 +116,10 @@
 
     const headings = explicit.length ? explicit : implicit;
 
-    if (!headings.length) {
-      return [{ title: fallbackTitle, text: text.trim() }];
-    }
+    if (!headings.length) return wholeBook;
 
-    // Pass 2: slice the text between headings
     const result = [];
     const preamble = lines.slice(0, headings[0].index).join("\n").trim();
-    // Keep text before the first heading only if it's real content
-    // (a bare title/subtitle block is skipped).
     if (preamble.length > 300) {
       result.push({ title: "Beginning", text: preamble });
     }
@@ -160,7 +134,8 @@
       result.push({ title: h.title, text: body });
     });
 
-    return result;
+    const nonEmpty = result.filter((c) => c.text);
+    return nonEmpty.length ? nonEmpty : wholeBook;
   }
 
   // ---------- paragraph rendering ----------
@@ -171,9 +146,7 @@
       .filter(Boolean);
     if (ls.length === 1) return `<p>${escapeHtml(ls[0])}</p>`;
     const avg = ls.reduce((n, l) => n + l.length, 0) / ls.length;
-    // short lines => poetry / verse: keep the line breaks
     if (avg < 50) return `<p>${ls.map(escapeHtml).join("<br>")}</p>`;
-    // long lines => hard-wrapped prose: re-flow
     return `<p>${escapeHtml(ls.join(" "))}</p>`;
   }
 
@@ -183,7 +156,6 @@
       .map((b) => b.trim())
       .filter(Boolean);
 
-    // No blank lines at all, but long lines => one paragraph per line
     if (blocks.length === 1) {
       const ls = blocks[0]
         .split("\n")
@@ -220,7 +192,7 @@
   }
 
   function applySettings() {
-    document.body.classList = "theme-" + settings.theme;
+    document.body.className = "theme-" + settings.theme;
     document.documentElement.style.setProperty(
       "--font-size",
       settings.size + "px",
@@ -387,9 +359,49 @@
     } catch {}
   }
 
+  function localDateKey(date) {
+    const year = String(date.getFullYear()).padStart(4, "0");
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+
+  function isDateKey(value) {
+    if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      return false;
+    }
+    const [year, month, day] = value.split("-").map(Number);
+    const date = new Date(year, month - 1, day);
+    return (
+      date.getFullYear() === year &&
+      date.getMonth() === month - 1 &&
+      date.getDate() === day
+    );
+  }
+
+  function recordReadingDay() {
+    const today = localDateKey(new Date());
+    let days = [];
+    try {
+      const raw = localStorage.getItem(READING_DAYS_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      days = Array.isArray(parsed)
+        ? [...new Set(parsed.filter(isDateKey))].filter((date) => date <= today)
+        : [];
+    } catch {}
+    if (days.includes(today)) return;
+    days.push(today);
+    try {
+      localStorage.setItem(
+        READING_DAYS_KEY,
+        JSON.stringify(days.sort()),
+      );
+    } catch {}
+  }
+
   function scrollFraction() {
     const max = document.documentElement.scrollHeight - window.innerHeight;
-    if (max <= 0) return 1;
+    if (max <= 0) return 0;
     return Math.min(1, Math.max(0, window.scrollY / max));
   }
 
@@ -405,6 +417,7 @@
   }
 
   function overallPercent() {
+    if (finished) return 100;
     const { start, span } = chapterSpans[chapterIndex];
     return Math.min(100, Math.max(0, (start + span * scrollFraction()) * 100));
   }
@@ -416,15 +429,20 @@
   }
 
   function persistProgress() {
+    if (!dirty || !bookId || !chapterSpans.length) return;
     saveProgress(bookId, {
       chapterIndex,
-      scrollFraction: scrollFraction(),
+      scrollFraction: finished ? 1 : scrollFraction(),
       progressPercent: overallPercent(),
+      finished,
       updatedAt: Date.now(),
     });
+    recordReadingDay();
   }
 
   function onScroll() {
+    if (suppressScrollEvents) return;
+    dirty = true;
     updateProgressUI();
     clearTimeout(saveTimer);
     saveTimer = setTimeout(persistProgress, 250);
@@ -440,10 +458,240 @@
         <a href="index.html" class="nav-btn">Back to the archive</a></div>`;
   }
 
-  function loadChapter(index, restoreScroll) {
+  function finishBook() {
+    finished = true;
+    dirty = true;
+    clearTimeout(saveTimer);
+    persistProgress();
+    updateProgressUI();
+    renderEnd();
+  }
+
+  function reactionKey(id) {
+    return "ending:reaction:" + id;
+  }
+
+  function loadReaction() {
+    try {
+      const reaction = localStorage.getItem(reactionKey(bookId));
+      return ["moved", "hopeful", "unsettled", "thoughtful"].includes(reaction)
+        ? reaction
+        : "";
+    } catch {
+      return "";
+    }
+  }
+
+  function endingQuote() {
+    const lastChapter = chapters[chapters.length - 1];
+    const paragraphs = lastChapter
+      ? lastChapter.text.split(/\n\s*\n/).map((part) => part.trim()).filter(Boolean)
+      : [];
+    const text = (paragraphs[paragraphs.length - 1] || "").replace(/\s+/g, " ");
+    if (text.length <= 190) return text;
+    const clipped = text.slice(0, 187);
+    const lastSpace = clipped.lastIndexOf(" ");
+    return clipped.slice(0, lastSpace > 120 ? lastSpace : 187).trimEnd() + "…";
+  }
+
+  function nextReadBook() {
+    const currentIndex = catalogBooks.findIndex(
+      (book) => String(book.id) === String(bookId),
+    );
+    if (currentIndex < 0 || catalogBooks.length < 2) return null;
+    return catalogBooks[(currentIndex + 1) % catalogBooks.length];
+  }
+
+  function renderEnd() {
+    const bookTitle = bookMeta ? bookMeta.title : "";
+    const bookAuthor = bookMeta ? bookMeta.author : "";
+    const quote = endingQuote();
+    const nextBook = nextReadBook();
+    const selectedReaction = loadReaction();
+    const nextHref = nextBook
+      ? `reader.html?id=${encodeURIComponent(nextBook.id)}`
+      : "index.html";
+    el.surface.innerHTML = `
+        <main class="ending-page">
+          <div class="chapter-eyebrow">The end</div>
+          <h1 class="ending-title">How did it end for you?</h1>
+          <p class="ending-bookline">${escapeHtml(bookTitle)}${bookAuthor ? ` <span>by ${escapeHtml(bookAuthor)}</span>` : ""}</p>
+
+          <section class="reaction-section" aria-labelledby="reactionHeading">
+            <h2 class="ending-section-title" id="reactionHeading">Leave a feeling with this story</h2>
+            <div class="reaction-options" role="group" aria-label="Your reaction to this book">
+              <button type="button" class="reaction-btn" data-reaction="moved" aria-pressed="${selectedReaction === "moved"}"><span aria-hidden="true">♡</span> Moved</button>
+              <button type="button" class="reaction-btn" data-reaction="hopeful" aria-pressed="${selectedReaction === "hopeful"}"><span aria-hidden="true">✦</span> Hopeful</button>
+              <button type="button" class="reaction-btn" data-reaction="unsettled" aria-pressed="${selectedReaction === "unsettled"}"><span aria-hidden="true">◌</span> Unsettled</button>
+              <button type="button" class="reaction-btn" data-reaction="thoughtful" aria-pressed="${selectedReaction === "thoughtful"}"><span aria-hidden="true">…</span> Thoughtful</button>
+            </div>
+          </section>
+
+          <div class="ending-cards">
+            <section class="ending-card next-read" aria-labelledby="nextReadHeading">
+              <div class="chapter-eyebrow">Keep wandering</div>
+              <h2 class="ending-section-title" id="nextReadHeading">Next read</h2>
+              ${
+                nextBook
+                  ? `<a class="next-read-link" href="${nextHref}">
+                      <img class="next-read-cover" src="${escapeHtml(nextBook.cover || "")}" alt="" loading="lazy" />
+                      <span class="next-read-copy">
+                        <span class="next-read-title">${escapeHtml(nextBook.title)}</span>
+                        <span class="next-read-author">${escapeHtml(nextBook.author || "")}</span>
+                        <span class="next-read-action">Open this story <span aria-hidden="true">→</span></span>
+                      </span>
+                    </a>`
+                  : `<a class="next-read-fallback" href="index.html">Find another story in the archive <span aria-hidden="true">→</span></a>`
+              }
+            </section>
+
+            <section class="ending-card quote-section" aria-labelledby="quoteHeading">
+              <div class="chapter-eyebrow">A line to take with you</div>
+              <h2 class="ending-section-title" id="quoteHeading">Keep this moment</h2>
+              <div class="quote-card" id="quoteCard">
+                <span class="quote-mark" aria-hidden="true">“</span>
+                <blockquote>${escapeHtml(quote)}</blockquote>
+                <div class="quote-attribution">${escapeHtml(bookTitle)}${bookAuthor ? ` · ${escapeHtml(bookAuthor)}` : ""}</div>
+                <div class="quote-wordmark">3NDING</div>
+              </div>
+              <button type="button" class="quote-share-btn" id="shareQuoteBtn">Share as image <span aria-hidden="true">↗</span></button>
+            </section>
+          </div>
+
+          <div class="ending-actions">
+            <a href="index.html" class="nav-btn">Back to the archive</a>
+            <button class="nav-btn" id="restartBtn">Read again</button>
+          </div>
+        </main>`;
+    applySettings();
+
+    const cover = el.surface.querySelector(".next-read-cover");
+    if (cover) {
+      cover.addEventListener("error", () => cover.remove());
+    }
+
+    el.surface.querySelectorAll(".reaction-btn").forEach((button) => {
+      button.addEventListener("click", () => {
+        const reaction = button.dataset.reaction;
+        try {
+          localStorage.setItem(reactionKey(bookId), reaction);
+          el.surface.querySelectorAll(".reaction-btn").forEach((item) => {
+            item.setAttribute("aria-pressed", String(item === button));
+          });
+        } catch {
+          showShareToast("Your reaction couldn't be saved on this device.");
+        }
+      });
+    });
+
+    document.getElementById("shareQuoteBtn").addEventListener("click", async () => {
+      const button = document.getElementById("shareQuoteBtn");
+      button.disabled = true;
+      try {
+        const blob = await createQuoteCard();
+        const file =
+          typeof File !== "undefined"
+            ? new File([blob], `${bookId}-ending.png`, { type: "image/png" })
+            : null;
+        if (file && navigator.canShare?.({ files: [file] })) {
+          try {
+            await navigator.share({
+              files: [file],
+              title: `A line from ${bookTitle}`,
+              text: `${bookTitle} — ${bookAuthor}`,
+            });
+            showShareToast("Quote card shared.");
+            return;
+          } catch (error) {
+            if (error.name === "AbortError") return;
+          }
+        }
+
+        const url = URL.createObjectURL(blob);
+        const download = document.createElement("a");
+        download.href = url;
+        download.download = `${bookId}-ending.png`;
+        download.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        showShareToast("Quote card downloaded as an image.");
+      } catch {
+        showShareToast("Unable to create the quote card image.");
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    document.getElementById("restartBtn").addEventListener("click", () => {
+      finished = false;
+      dirty = false;
+      loadChapter(0, false, false);
+    });
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+  }
+
+  async function createQuoteCard() {
+    await document.fonts.ready;
+    const canvas = document.createElement("canvas");
+    canvas.width = 1200;
+    canvas.height = 1500;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Canvas is unavailable.");
+
+    context.fillStyle = "#171b21";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.fillStyle = "#d4ac57";
+    context.fillRect(112, 112, 72, 4);
+    context.fillStyle = "#d4ac57";
+    context.font = "24px 'Space Mono', monospace";
+    context.fillText("3NDING  /  THE END", 112, 170);
+
+    context.fillStyle = "#f2e9d3";
+    context.font = "54px Literata, Georgia, serif";
+    const words = `“${endingQuote()}”`.split(/\s+/);
+    const lines = [];
+    let line = "";
+    const maxWidth = 976;
+    words.forEach((word) => {
+      const candidate = line ? `${line} ${word}` : word;
+      if (line && context.measureText(candidate).width > maxWidth) {
+        lines.push(line);
+        line = word;
+      } else {
+        line = candidate;
+      }
+    });
+    if (line) lines.push(line);
+    const lineHeight = 82;
+    const quoteHeight = lines.length * lineHeight;
+    let y = Math.max(510, (canvas.height - quoteHeight) / 2);
+    lines.forEach((quoteLine) => {
+      context.fillText(quoteLine, 112, y, maxWidth);
+      y += lineHeight;
+    });
+
+    context.fillStyle = "#b8923f";
+    context.fillRect(112, 1240, 976, 1);
+    context.fillStyle = "#ece4d1";
+    context.font = "30px 'Work Sans', sans-serif";
+    context.fillText(bookMeta?.title || "", 112, 1310, 976);
+    context.fillStyle = "#9aa2ad";
+    context.font = "24px 'Work Sans', sans-serif";
+    context.fillText(bookMeta?.author || "", 112, 1355, 976);
+
+    return new Promise((resolve, reject) => {
+      canvas.toBlob((blob) => {
+        if (blob) resolve(blob);
+        else reject(new Error("The quote card image could not be encoded."));
+      }, "image/png");
+    });
+  }
+
+  function loadChapter(index, restoreScroll, persist = !restoreScroll) {
     chapterIndex = Math.min(Math.max(index, 0), chapters.length - 1);
+    finished = false;
     const chapter = chapters[chapterIndex];
     const total = chapters.length;
+    const isLast = chapterIndex === total - 1;
     const title = chapter.title || "Chapter " + (chapterIndex + 1);
 
     const options = chapters
@@ -453,15 +701,19 @@
       )
       .join("");
 
+    const forwardBtn = isLast
+      ? `<button class="nav-btn" id="finishBtn">Finish</button>`
+      : `<button class="nav-btn" id="nextBtn">Next</button>`;
+
     el.surface.innerHTML = `
         <div class="reader-page">
-          <div class="chapter-eyebrow">Page ${chapterIndex + 1} of ${total}</div>
+          <div class="chapter-eyebrow">Chapter ${chapterIndex + 1} of ${total}</div>
           <h1 class="chapter-title">${escapeHtml(title)}</h1>
           <div class="chapter-body font-${settings.font}">${paragraphize(chapter.text)}</div>
           <div class="chapter-nav">
             <button class="nav-btn" id="prevBtn" ${chapterIndex === 0 ? "disabled" : ""}>Prev</button>
             <select class="chapter-select" id="chapterSelect">${options}</select>
-            <button class="nav-btn" id="nextBtn" ${chapterIndex === total - 1 ? "disabled" : ""}>Next</button>
+            ${forwardBtn}
           </div>
         </div>`;
 
@@ -470,29 +722,43 @@
     document.getElementById("prevBtn").addEventListener("click", () => {
       loadChapter(chapterIndex - 1, false);
     });
-    document.getElementById("nextBtn").addEventListener("click", () => {
-      loadChapter(chapterIndex + 1, false);
-    });
+    const nextBtn = document.getElementById("nextBtn");
+    if (nextBtn) {
+      nextBtn.addEventListener("click", () => {
+        loadChapter(chapterIndex + 1, false);
+      });
+    }
+    const finishBtn = document.getElementById("finishBtn");
+    if (finishBtn) finishBtn.addEventListener("click", finishBook);
     document.getElementById("chapterSelect").addEventListener("change", (e) => {
       loadChapter(parseInt(e.target.value, 10), false);
     });
 
-    const jumpTo = (top) =>
+    const jumpTo = (top) => {
+      suppressScrollEvents = true;
       window.scrollTo({ top, left: 0, behavior: "instant" });
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          suppressScrollEvents = false;
+        });
+      });
+    };
 
-    // in loadChapter:
     if (restoreScroll) {
       const saved = loadProgress(bookId);
       if (saved && saved.chapterIndex === chapterIndex) {
         const max = document.documentElement.scrollHeight - window.innerHeight;
-        jumpTo(max * (saved.scrollFraction || 0));
+        jumpTo(Math.max(0, max) * (saved.scrollFraction || 0));
       }
     } else {
       jumpTo(0);
     }
 
     updateProgressUI();
-    persistProgress();
+    if (persist) {
+      dirty = true;
+      persistProgress();
+    }
   }
 
   async function init() {
@@ -506,8 +772,9 @@
         () => null,
       );
       if (booksRes && booksRes.ok) {
-        const books = await booksRes.json();
-        bookMeta = books.find((b) => String(b.id) === String(bookId)) || null;
+        catalogBooks = await booksRes.json();
+        bookMeta =
+          catalogBooks.find((b) => String(b.id) === String(bookId)) || null;
       }
       const fallbackTitle = bookMeta ? bookMeta.title : `Book ${bookId}`;
       el.topbarTitle.textContent = fallbackTitle;
@@ -541,10 +808,13 @@
       applySettings();
 
       const saved = loadProgress(bookId);
-      const startIndex = Number.isInteger(saved?.chapterIndex)
-        ? saved.chapterIndex
-        : 0;
-      loadChapter(startIndex, true);
+      const wasFinished =
+        saved?.finished === true || (saved?.progressPercent ?? 0) >= 99;
+      const startIndex =
+        !wasFinished && Number.isInteger(saved?.chapterIndex)
+          ? saved.chapterIndex
+          : 0;
+      loadChapter(startIndex, !wasFinished, false);
 
       window.addEventListener("scroll", onScroll, { passive: true });
       window.addEventListener("beforeunload", persistProgress);

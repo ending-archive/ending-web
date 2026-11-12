@@ -9,8 +9,16 @@
   const shareStatus = document.getElementById("shareStatus");
   const favRow = document.getElementById("favRow");
   const favToggle = document.getElementById("favToggle");
-  const favToggleIcon = document.getElementById("favToggleIcon");
   const favCount = document.getElementById("favCount");
+  const finishedRow = document.getElementById("finishedRow");
+  const finishedToggle = document.getElementById("finishedToggle");
+  const finishedCount = document.getElementById("finishedCount");
+  const finishedHeading = document.getElementById("finishedHeading");
+  const readingStreak = document.getElementById("readingStreak");
+  const weeklyGoalSelect = document.getElementById("weeklyGoal");
+  const weeklyGoalTrack = document.getElementById("weeklyGoalTrack");
+  const weeklyGoalFill = document.getElementById("weeklyGoalFill");
+  const weeklyGoalCount = document.getElementById("weeklyGoalCount");
   const pagination = document.getElementById("pagination");
   const pageStatus = document.getElementById("pageStatus");
   const prevPageBtn = document.getElementById("prevPageBtn");
@@ -26,15 +34,20 @@
   const NEW_BADGE_DAYS = 7;
   const FAVORITES_KEY = "ending:favorites";
   const LIBRARY_PAGE_KEY = "ending:library-page";
+  const READING_DAYS_KEY = "ending:reading-days";
+  const WEEKLY_GOAL_KEY = "ending:weekly-goal";
+  const DEFAULT_WEEKLY_GOAL = 3;
 
   let allBooks = [];
   let favorites = loadFavorites();
+  let weeklyGoal = DEFAULT_WEEKLY_GOAL;
+  let readingSummaryTimer;
   let favoritesOnly = false;
+  let finishedOnly = false;
   let currentPage = loadLibraryPage();
   let lastMatches = [];
+  let catalogNo = new Map();
 
-  // Escape any string before it goes into innerHTML, so titles/authors
-  // from books.json can never be interpreted as markup.
   function escapeHtml(str) {
     return String(str).replace(
       /[&<>"']/g,
@@ -60,6 +73,154 @@
     if (addedAt === null) return false;
     const age = Date.now() - addedAt;
     return age >= 0 && age < NEW_BADGE_DAYS * 24 * 60 * 60 * 1000;
+  }
+
+  function getProgress(book) {
+    try {
+      const raw = localStorage.getItem(`ending:progress:${book.id}`);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function localDateKey(date) {
+    const year = String(date.getFullYear()).padStart(4, "0");
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+
+  function isDateKey(value) {
+    if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      return false;
+    }
+    const [year, month, day] = value.split("-").map(Number);
+    const date = new Date(year, month - 1, day);
+    return (
+      date.getFullYear() === year &&
+      date.getMonth() === month - 1 &&
+      date.getDate() === day
+    );
+  }
+
+  function loadReadingDays() {
+    try {
+      const raw = localStorage.getItem(READING_DAYS_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      const today = localDateKey(new Date());
+      return [...new Set(parsed.filter(isDateKey))]
+        .filter((date) => date <= today)
+        .sort();
+    } catch {
+      return [];
+    }
+  }
+
+  function loadWeeklyGoal() {
+    try {
+      const goal = Number(localStorage.getItem(WEEKLY_GOAL_KEY));
+      return Number.isInteger(goal) && goal >= 1 && goal <= 7
+        ? goal
+        : DEFAULT_WEEKLY_GOAL;
+    } catch {
+      return DEFAULT_WEEKLY_GOAL;
+    }
+  }
+
+  function saveWeeklyGoal() {
+    try {
+      localStorage.setItem(WEEKLY_GOAL_KEY, String(weeklyGoal));
+    } catch {}
+  }
+
+  function renderReadingSummary() {
+    const now = new Date();
+    const today = localDateKey(now);
+    const readingDays = loadReadingDays();
+    const readingDaySet = new Set(readingDays);
+    let cursor = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    if (!readingDaySet.has(localDateKey(cursor))) {
+      cursor.setDate(cursor.getDate() - 1);
+    }
+
+    let streak = 0;
+    while (readingDaySet.has(localDateKey(cursor))) {
+      streak += 1;
+      cursor.setDate(cursor.getDate() - 1);
+    }
+
+    const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const dayOfWeek = monday.getDay() || 7;
+    monday.setDate(monday.getDate() - dayOfWeek + 1);
+    const weekStart = localDateKey(monday);
+    const daysThisWeek = readingDays.filter(
+      (date) => date >= weekStart && date <= today,
+    ).length;
+
+    readingStreak.textContent = `${streak} ${streak === 1 ? "day" : "days"}`;
+    weeklyGoalSelect.value = String(weeklyGoal);
+    weeklyGoalTrack.setAttribute("aria-valuemax", String(weeklyGoal));
+    weeklyGoalTrack.setAttribute(
+      "aria-valuenow",
+      String(Math.min(daysThisWeek, weeklyGoal)),
+    );
+    weeklyGoalTrack.setAttribute(
+      "aria-valuetext",
+      `${daysThisWeek} of ${weeklyGoal} days this week`,
+    );
+    weeklyGoalFill.style.width = `${Math.min(100, (daysThisWeek / weeklyGoal) * 100)}%`;
+    weeklyGoalCount.textContent = `${daysThisWeek} / ${weeklyGoal} ${weeklyGoal === 1 ? "day" : "days"}`;
+  }
+
+  function scheduleReadingSummaryRefresh() {
+    window.clearTimeout(readingSummaryTimer);
+    const now = new Date();
+    const nextMidnight = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate() + 1,
+    );
+    readingSummaryTimer = window.setTimeout(
+      () => {
+        renderReadingSummary();
+        scheduleReadingSummaryRefresh();
+      },
+      nextMidnight.getTime() - now.getTime() + 50,
+    );
+  }
+
+  weeklyGoal = loadWeeklyGoal();
+  weeklyGoalSelect.addEventListener("change", () => {
+    weeklyGoal = Number(weeklyGoalSelect.value);
+    saveWeeklyGoal();
+    renderReadingSummary();
+  });
+
+  window.addEventListener("storage", (event) => {
+    if (event.key === READING_DAYS_KEY) renderReadingSummary();
+    if (event.key === WEEKLY_GOAL_KEY) {
+      weeklyGoal = loadWeeklyGoal();
+      renderReadingSummary();
+    }
+  });
+
+  function isFinishedProgress(progress) {
+    return (
+      progress?.finished === true ||
+      (Number.isFinite(Number(progress?.progressPercent)) &&
+        Number(progress.progressPercent) >= 99)
+    );
+  }
+
+  function countFinishedBooks(books) {
+    return books.filter((book) => isFinishedProgress(getProgress(book))).length;
+  }
+
+  function updateFinishedCount() {
+    finishedCount.textContent = String(countFinishedBooks(allBooks));
   }
 
   // ---------- favorites persistence ----------
@@ -104,23 +265,21 @@
     return favorites.has(String(id));
   }
 
-    function updateFavCount() {
-      favCount.textContent = allBooks.filter((b) => isFavorite(b.id)).length;
-    }
+  function updateFavCount() {
+    favCount.textContent = allBooks.filter((b) => isFavorite(b.id)).length;
+  }
 
   function toggleFavorite(id) {
     const key = String(id);
     if (favorites.has(key)) {
       favorites.delete(key);
     } else {
-      // Store the current timestamp when favorited
       favorites.set(key, Date.now());
     }
     saveFavorites();
     updateFavCount();
 
     if (favoritesOnly) {
-      // The favorites-only list membership just changed, so recompute it.
       applyFilter(false);
       return;
     }
@@ -133,7 +292,6 @@
         "aria-label",
         active ? "Remove from favorites" : "Add to favorites",
       );
-      btn.textContent = active ? "\u2665" : "\u2661";
     }
   }
 
@@ -205,24 +363,30 @@
       const cover = escapeHtml(book.cover);
       const id = String(book.id);
       const active = isFavorite(id);
+      const completed = isFinishedProgress(getProgress(book));
       const card = document.createElement("article");
-      const catalogNo = allBooks.indexOf(book) + 1;
+      card.dataset.id = id;
+      const no = catalogNo.get(id) || 0;
       card.className = "card";
       card.style.animationDelay = `${Math.min(i * 40, 400)}ms`;
       const cardLink = document.createElement("a");
       cardLink.href = `reader.html?id=${encodeURIComponent(book.id)}`;
-      cardLink.setAttribute("aria-label", `${book.title} by ${book.author}`);
+      cardLink.setAttribute(
+        "aria-label",
+        `${book.title} by ${book.author}${completed ? ", finished; read again" : ""}`,
+      );
       cardLink.className = "card-link";
       cardLink.innerHTML = `
         <div class="cover-wrap">
           <img src="${cover}" alt="Cover of ${title}" loading="lazy">
+          ${completed ? '<span class="card-state">Finished</span>' : ""}
         </div>
         <div class="card-body">
           <p class="card-title">${title}</p>
           <p class="card-author">${author}</p>
         </div>
         <div class="slip">
-          <span>No. ${String(catalogNo).padStart(4, "0")}</span>
+          <span>No. ${String(no).padStart(4, "0")}</span>
           ${isNewArrival(book) ? '<span class="arrival-badge">New</span>' : ""}
         </div>
       `;
@@ -230,12 +394,16 @@
       favoriteButton.type = "button";
       favoriteButton.className = `fav-btn${active ? " active" : ""}`;
       favoriteButton.dataset.id = id;
+      favoriteButton.innerHTML = `
+        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.5 1.1-1.1a5.5 5.5 0 0 0-.1-7.8Z" />
+        </svg>`;
       favoriteButton.setAttribute("aria-pressed", String(active));
       favoriteButton.setAttribute(
         "aria-label",
         active ? "Remove from favorites" : "Add to favorites",
       );
-      favoriteButton.textContent = active ? "\u2665" : "\u2661";
       favoriteButton.addEventListener("click", (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -317,15 +485,16 @@
     const reading = [];
     books.forEach((book) => {
       try {
-        const raw = localStorage.getItem(`ending:progress:${book.id}`);
-        if (!raw) return;
-        const progress = JSON.parse(raw);
+        const progress = getProgress(book);
+        if (!progress) return;
         if (
           !Number.isInteger(progress.chapterIndex) ||
           !Number.isFinite(progress.updatedAt)
         ) {
           return;
         }
+
+        if (isFinishedProgress(progress)) return;
 
         const storedPercent = Number(progress.progressPercent);
         const legacyFraction = Number(progress.scrollFraction);
@@ -336,7 +505,7 @@
         const percent = hasStoredPercent
           ? storedPercent
           : Math.min(100, Math.max(0, legacyFraction * 100));
-        if (!Number.isFinite(percent) || percent >= 100) return;
+        if (!Number.isFinite(percent) || percent <= 0 || percent >= 100) return;
 
         reading.push({
           book,
@@ -415,6 +584,31 @@
     });
   }
 
+  function updateRenderedCompletionStates() {
+    grid.querySelectorAll(".card").forEach((card) => {
+      const cover = card.querySelector(".cover-wrap");
+      const finished = isFinishedProgress(getProgress({ id: card.dataset.id }));
+      const link = card.querySelector(".card-link");
+      let state = cover.querySelector(".card-state");
+
+      if (finished && !state) {
+        state = document.createElement("span");
+        state.className = "card-state";
+        state.textContent = "Finished";
+        cover.append(state);
+      } else if (!finished) {
+        state?.remove();
+      }
+
+      const title = card.querySelector(".card-title").textContent;
+      const author = card.querySelector(".card-author").textContent;
+      link.setAttribute(
+        "aria-label",
+        `${title} by ${author}${finished ? ", finished; read again" : ""}`,
+      );
+    });
+  }
+
   // ---------- pagination ----------
   function renderPagination(totalItems) {
     const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
@@ -452,6 +646,7 @@
     const start = (currentPage - 1) * PAGE_SIZE;
     renderBooks(lastMatches.slice(start, start + PAGE_SIZE));
     renderPagination(lastMatches.length);
+    finishedHeading.hidden = !finishedOnly;
   }
 
   function setStatus(text, animated) {
@@ -473,14 +668,21 @@
 
     let matches = allBooks;
 
-    if (favoritesOnly) {
+    if (finishedOnly) {
+      matches = matches
+        .filter((book) => isFinishedProgress(getProgress(book)))
+        .sort(
+          (a, b) =>
+            (Number(getProgress(b)?.updatedAt) || 0) -
+            (Number(getProgress(a)?.updatedAt) || 0),
+        );
+    } else if (favoritesOnly) {
       matches = matches
         .filter((b) => isFavorite(b.id))
         .sort((a, b) => {
           const timeA = favorites.get(String(a.id)) || 0;
           const timeB = favorites.get(String(b.id)) || 0;
-          return timeB - timeA; // Newest favorited first
-          // (Change to `timeA - timeB` if oldest favorited first)
+          return timeB - timeA; // (Change to `timeA - timeB` if oldest favorited first)
         });
     }
 
@@ -499,7 +701,11 @@
       noResults.hidden = false;
       if (favoritesOnly && !q) {
         noResults.textContent =
-          "You haven't favorited any books yet — tap the ♡ on a book to add it.";
+          "You haven't favorited any books yet — tap the heart on a book to add it.";
+      } else if (finishedOnly && !q) {
+        noResults.textContent = "You haven't finished any books yet.";
+      } else if (finishedOnly && q) {
+        noResults.innerHTML = `No finished books match "<span>${escapeHtml(searchInput.value.trim())}</span>".`;
       } else if (favoritesOnly && q) {
         noResults.innerHTML = `None of your favorites match "<span>${escapeHtml(searchInput.value.trim())}</span>". Clear the search to see all favorites.`;
       } else if (q) {
@@ -508,13 +714,18 @@
         noResults.textContent = "No books to show.";
       }
       setStatus("0 books shown", false);
+      finishedHeading.hidden = !finishedOnly;
       return;
     }
 
     noResults.hidden = true;
     renderCurrentPage();
 
-    const noun = favoritesOnly ? "favorite" : "book";
+    const noun = finishedOnly
+      ? "finished book"
+      : favoritesOnly
+        ? "favorite"
+        : "book";
     const scope = q ? ` matching "${searchInput.value.trim()}"` : "";
     setStatus(
       `Showing ${matches.length} ${noun}${matches.length === 1 ? "" : "s"}${scope}`,
@@ -526,13 +737,49 @@
 
   favToggle.addEventListener("click", () => {
     favoritesOnly = !favoritesOnly;
+    finishedOnly = false;
+    finishedToggle.setAttribute("aria-pressed", "false");
     favToggle.setAttribute("aria-pressed", String(favoritesOnly));
-    favToggleIcon.textContent = favoritesOnly ? "\u2665" : "\u2661";
     if (favoritesOnly && searchInput.value.trim()) {
       searchInput.value = "";
     }
     applyFilter(true);
   });
+
+  finishedToggle.addEventListener("click", () => {
+    finishedOnly = !finishedOnly;
+    favoritesOnly = false;
+    finishedToggle.setAttribute("aria-pressed", String(finishedOnly));
+    favToggle.setAttribute("aria-pressed", "false");
+    if (finishedOnly && searchInput.value.trim()) searchInput.value = "";
+    applyFilter(true);
+  });
+
+  function refreshFromStorage() {
+    weeklyGoal = loadWeeklyGoal();
+    renderReadingSummary();
+    if (!allBooks.length) return;
+    renderContinueReading(allBooks);
+    updateFinishedCount();
+    updateRenderedCompletionStates();
+
+    const before = JSON.stringify([...favorites]);
+    favorites = loadFavorites();
+    updateFavCount();
+    if (JSON.stringify([...favorites]) !== before || finishedOnly) {
+      applyFilter(false);
+    }
+  }
+
+  window.addEventListener("pageshow", (e) => {
+    if (e.persisted) refreshFromStorage();
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") refreshFromStorage();
+  });
+
+  renderReadingSummary();
+  scheduleReadingSummaryRefresh();
 
   async function loadBooks() {
     renderSkeletons(SKELETON_COUNT);
@@ -555,6 +802,8 @@
         return;
       }
 
+      catalogNo = new Map(books.map((b, i) => [String(b.id), i + 1]));
+
       allBooks = books
         .map((book, index) => ({
           book,
@@ -572,7 +821,9 @@
       renderContinueReading(allBooks);
       searchRow.hidden = false;
       favRow.hidden = false;
+      finishedRow.hidden = false;
       updateFavCount();
+      updateFinishedCount();
       applyFilter(false);
     } catch (err) {
       grid.innerHTML = `
