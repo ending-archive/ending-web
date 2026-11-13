@@ -5,7 +5,9 @@
 
   function register() {
     if (!("serviceWorker" in navigator)) {
-      return Promise.reject(new Error("This browser does not support offline storage."));
+      return Promise.reject(
+        new Error("This browser does not support offline storage."),
+      );
     }
     if (!window.isSecureContext && location.hostname !== "localhost") {
       return Promise.reject(
@@ -25,12 +27,21 @@
 
   async function sendMessage(message) {
     const registration = await register();
-    await navigator.serviceWorker.ready;
-    const worker =
-      navigator.serviceWorker.controller ||
-      registration.active ||
-      registration.waiting;
-    if (!worker) throw new Error("Offline storage is still starting. Try again.");
+    const ready = await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise((_, rej) =>
+        setTimeout(
+          () =>
+            rej(
+              new Error("Offline storage didn't start. Reload and try again."),
+            ),
+          10000,
+        ),
+      ),
+    ]);
+    const worker = navigator.serviceWorker.controller || ready.active;
+    if (!worker)
+      throw new Error("Offline storage is still starting. Try again.");
 
     return new Promise((resolve, reject) => {
       const channel = new MessageChannel();

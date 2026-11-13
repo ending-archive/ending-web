@@ -64,6 +64,17 @@
     );
   }
 
+  function normalizeSearchText(text) {
+    const normalized = String(text)
+      .normalize("NFD")
+      .replace(/\p{Diacritic}/gu, "")
+      .toLowerCase()
+      .replace(/[’‘'ʼ`]/g, "")
+      .replace(/[^\p{L}\p{N}]+/gu, " ")
+      .trim();
+    return normalized ? normalized.split(/\s+/) : [];
+  }
+
   function getAddedAtTimestamp(book) {
     if (typeof book.addedAt !== "string") return null;
     const timestamp = Date.parse(book.addedAt);
@@ -813,7 +824,7 @@
       currentPage = 1;
       saveLibraryPage();
     }
-    const q = searchInput.value.trim().toLowerCase();
+    const queryTokens = normalizeSearchText(searchInput.value);
 
     let matches = allBooks;
 
@@ -835,12 +846,17 @@
         });
     }
 
-    if (q)
-      matches = matches.filter(
-        (b) =>
-          b.title.toLowerCase().includes(q) ||
-          b.author.toLowerCase().includes(q),
-      );
+    if (queryTokens.length)
+      matches = matches.filter((book) => {
+        const searchableTokens = normalizeSearchText(
+          `${book.title} ${book.author}`,
+        );
+        return queryTokens.every((queryToken) =>
+          searchableTokens.some((token) => token.includes(queryToken)),
+        );
+      });
+
+    const hasQuery = queryTokens.length > 0;
 
     lastMatches = matches;
 
@@ -848,16 +864,16 @@
       grid.innerHTML = "";
       pagination.hidden = true;
       noResults.hidden = false;
-      if (favoritesOnly && !q) {
+      if (favoritesOnly && !hasQuery) {
         noResults.textContent =
           "You haven't favorited any books yet — tap the heart on a book to add it.";
-      } else if (finishedOnly && !q) {
+      } else if (finishedOnly && !hasQuery) {
         noResults.textContent = "You haven't finished any books yet.";
-      } else if (finishedOnly && q) {
+      } else if (finishedOnly && hasQuery) {
         noResults.innerHTML = `No finished books match "<span>${escapeHtml(searchInput.value.trim())}</span>".`;
-      } else if (favoritesOnly && q) {
+      } else if (favoritesOnly && hasQuery) {
         noResults.innerHTML = `None of your favorites match "<span>${escapeHtml(searchInput.value.trim())}</span>". Clear the search to see all favorites.`;
-      } else if (q) {
+      } else if (hasQuery) {
         noResults.innerHTML = `No books match "<span>${escapeHtml(searchInput.value.trim())}</span>".`;
       } else {
         noResults.textContent = "No books to show.";
@@ -875,7 +891,7 @@
       : favoritesOnly
         ? "favorite"
         : "book";
-    const scope = q ? ` matching "${searchInput.value.trim()}"` : "";
+    const scope = hasQuery ? ` matching "${searchInput.value.trim()}"` : "";
     setStatus(
       `Showing ${matches.length} ${noun}${matches.length === 1 ? "" : "s"}${scope}`,
       false,

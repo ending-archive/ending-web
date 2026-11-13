@@ -20,17 +20,31 @@ const APP_ASSETS = [
   "apple-touch-icon.png",
   "favicon-16x16.png",
   "favicon-32x32.png",
-  "favicon.ico",
 ];
+
+const CORE = [
+  "index.html",
+  "reader.html",
+  "manifest.webmanifest",
+  "books.json",
+  "css/index.css",
+  "css/reader.css",
+  "js/index.js",
+  "js/reader.js",
+  "js/pwa.js",
+];
+
+const OPTIONAL = APP_ASSETS.filter((a) => !CORE.includes(a));
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches
-      .open(APP_CACHE)
-      .then((cache) =>
-        cache.addAll(APP_ASSETS.map((asset) => new URL(asset, BASE_URL))),
-      )
-      .then(() => self.skipWaiting()),
+    (async () => {
+      const cache = await caches.open(APP_CACHE);
+      const req = (a) => new Request(new URL(a, BASE_URL), { cache: "reload" });
+      await Promise.all(CORE.map((a) => cache.add(req(a)))); // must succeed
+      await Promise.allSettled(OPTIONAL.map((a) => cache.add(req(a)))); // best effort
+      await self.skipWaiting();
+    })(),
   );
 });
 
@@ -164,7 +178,7 @@ self.addEventListener("fetch", (event) => {
     url.pathname.startsWith(p("books/")) &&
     url.pathname.endsWith(".txt")
   ) {
-    event.respondWith(bookText(request));
+    event.respondWith(bookText(event, request));
   } else if (request.mode === "navigate") {
     if (
       ![BASE_URL.pathname, p("index.html"), p("reader.html")].includes(
@@ -191,14 +205,18 @@ async function booksJson(request) {
   }
 }
 
-async function bookText(request) {
-  try {
-    return await fetch(request);
-  } catch {
-    // fresh when online
-    const saved = await (await caches.open(BOOK_CACHE)).match(request);
-    return saved || Response.error(); // only explicitly saved books
+async function bookText(event, request) {
+  const cache = await caches.open(BOOK_CACHE);
+  const saved = await cache.match(request);
+  const network = fetch(request).then((res) => {
+    if (saved && res.ok) cache.put(request, res.clone());
+    return res;
+  });
+  if (saved) {
+    event.waitUntil(network.catch(() => {}));
+    return saved;
   }
+  return network;
 }
 
 async function navigation(request, url, readerPath) {

@@ -750,20 +750,28 @@
 
   function persistProgress() {
     if (!dirty || !bookId || !chapterSpans.length) return;
+    const prev = loadProgress(bookId);
     saveProgress(bookId, {
       chapterIndex,
       scrollFraction: finished ? 1 : scrollFraction(),
-      progressPercent: overallPercent(),
-      finished,
+      progressPercent: finished ? 100 : overallPercent(),
+      finished: finished || prev?.finished === true,
       updatedAt: Date.now(),
     });
     recordReadingDay();
   }
 
+  let ticking = false;
   function onScroll() {
     if (suppressScrollEvents) return;
     dirty = true;
-    updateProgressUI();
+    if (!ticking) {
+      ticking = true;
+      requestAnimationFrame(() => {
+        ticking = false;
+        updateProgressUI();
+      });
+    }
     clearTimeout(saveTimer);
     saveTimer = setTimeout(persistProgress, 250);
   }
@@ -1053,12 +1061,25 @@
     return clipped.slice(0, lastSpace > 120 ? lastSpace : 187).trimEnd() + "…";
   }
 
+  function isFinishedBook(book) {
+    const progress = loadProgress(book.id);
+    return (
+      progress?.finished === true ||
+      (Number.isFinite(Number(progress?.progressPercent)) &&
+        Number(progress.progressPercent) >= 99)
+    );
+  }
+
   function nextReadBook() {
     const currentIndex = catalogBooks.findIndex(
       (book) => String(book.id) === String(bookId),
     );
     if (currentIndex < 0 || catalogBooks.length < 2) return null;
-    return catalogBooks[(currentIndex + 1) % catalogBooks.length];
+    for (let offset = 1; offset < catalogBooks.length; offset++) {
+      const book = catalogBooks[(currentIndex + offset) % catalogBooks.length];
+      if (!isFinishedBook(book)) return book;
+    }
+    return null;
   }
 
   function renderEnd() {
@@ -1120,7 +1141,6 @@
           <div class="ending-actions">
             <button type="button" class="nav-btn" data-open-notes>Saved passages (${annotations.bookmarks.length + annotations.highlights.length})</button>
             <a href="index.html" class="nav-btn">Back to the archive</a>
-            <button class="nav-btn" id="restartBtn">Read again</button>
           </div>
         </main>`;
     applySettings();
@@ -1360,7 +1380,21 @@
         () => null,
       );
       if (booksRes && booksRes.ok) {
-        catalogBooks = await booksRes.json();
+        const books = await booksRes.json();
+        catalogBooks = books
+          .map((book, index) => {
+            const addedAt =
+              typeof book.addedAt === "string" ? Date.parse(book.addedAt) : NaN;
+            return { book, index, addedAt };
+          })
+          .sort((a, b) => {
+            if (!Number.isFinite(a.addedAt)) {
+              return Number.isFinite(b.addedAt) ? 1 : a.index - b.index;
+            }
+            if (!Number.isFinite(b.addedAt)) return -1;
+            return b.addedAt - a.addedAt || a.index - b.index;
+          })
+          .map(({ book }) => book);
         bookMeta =
           catalogBooks.find((b) => String(b.id) === String(bookId)) || null;
       }
