@@ -198,7 +198,13 @@ body.theme-dark {
 }
 
 .share-btn:focus-visible,
-.settings-btn:focus-visible {
+.settings-btn:focus-visible,
+.nav-btn:focus-visible,
+.chapter-select:focus-visible,
+.reaction-btn:focus-visible,
+.quote-share-btn:focus-visible,
+.next-read-link:focus-visible,
+.next-read-fallback:focus-visible {
   outline: 2px solid var(--brass-bright);
   outline-offset: 2px;
 }
@@ -260,7 +266,7 @@ body.theme-dark {
   transform: translateX(100%);
   transition:
     transform 0.25s ease,
-    visibility 0s 0.15s;
+    visibility 0s linear 0.15s;
   overflow-y: auto;
   padding: 1.4rem 1.3rem 2rem;
 }
@@ -292,7 +298,9 @@ body.theme-dark {
   padding-bottom: 0.4rem;
   border-bottom: 1px solid rgba(184, 146, 63, 0.2);
   color: var(--brass-bright);
-  font: 0.72rem "Space Mono", monospace;
+  font:
+    0.72rem "Space Mono",
+    monospace;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -309,14 +317,19 @@ body.theme-dark {
 }
 
 .saved-item-label {
-  font: 0.68rem/1.5 "Space Mono", monospace;
+  font:
+    0.68rem/1.5 "Space Mono",
+    monospace;
   overflow-wrap: anywhere;
 }
 
 .saved-quote {
   margin: 0 0 0.35rem;
   color: var(--text-light);
-  font: 0.86rem/1.55 "Literata", Georgia, serif;
+  font:
+    0.86rem/1.55 "Literata",
+    Georgia,
+    serif;
   overflow-wrap: anywhere;
 }
 
@@ -334,7 +347,9 @@ body.theme-dark {
   border-radius: var(--radius);
   background: transparent;
   color: var(--text-light);
-  font: 0.67rem "Work Sans", sans-serif;
+  font:
+    0.67rem "Work Sans",
+    sans-serif;
   cursor: pointer;
   overflow-wrap: anywhere;
 }
@@ -581,7 +596,9 @@ body.theme-dark .text-highlight {
   background: var(--ink);
   color: var(--brass-bright);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.22);
-  font: 0.72rem "Space Mono", monospace;
+  font:
+    0.72rem "Space Mono",
+    monospace;
   cursor: pointer;
 }
 

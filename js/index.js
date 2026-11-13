@@ -736,9 +736,9 @@
       const author = card.querySelector(".card-author").textContent;
       link.setAttribute(
         "aria-label",
-        `${title} by ${author}${finished ? ", Finished" : ""}`,
+        `${title} by ${author}${finished ? ", Finished; read again?" : ""}`,
       );
-      link.title = `${title} by ${author}${finished ? ", Finished" : ""}`;
+      link.title = `${title} by ${author}${finished ? ", Finished; read again?" : ""}`;
     });
   }
 

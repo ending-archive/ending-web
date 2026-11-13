@@ -538,6 +538,7 @@
         );
         if (paragraph) {
           paragraph.scrollIntoView({ block: "center", behavior: "instant" });
+          suppressScrollEvents = false;
           onScroll();
         }
       });
@@ -1411,7 +1412,6 @@
       }, 5000);
 
       window.addEventListener("scroll", onScroll, { passive: true });
-      window.addEventListener("beforeunload", persistProgress);
       window.addEventListener("pagehide", persistProgress);
       document.addEventListener("visibilitychange", () => {
         if (document.visibilityState === "hidden") persistProgress();

@@ -100,7 +100,7 @@ async function saveBook(path) {
   const cache = await caches.open(BOOK_CACHE);
   if (await cache.match(request)) return { saved: true };
 
-  const response = await fetch(request);
+  const response = await fetch(request, { cache: "reload" });
   if (!response.ok) {
     throw new Error(`Book download failed (HTTP ${response.status}).`);
   }
@@ -147,88 +147,82 @@ self.addEventListener("message", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
-  const request = event.request;
+  const { request } = event;
+  if (request.method !== "GET") return;
   const url = new URL(request.url);
-  if (request.method !== "GET" || url.origin !== BASE_URL.origin) return;
-
-  if (url.pathname === new URL("books.json", BASE_URL).pathname) {
-    event.respondWith(
-      fetch(request)
-        .then(async (response) => {
-          if (response.ok) {
-            try {
-              const cache = await caches.open(APP_CACHE);
-              await cache.put(
-                new URL("books.json", BASE_URL),
-                response.clone(),
-              );
-            } catch (error) {
-              console.error(
-                "Unable to refresh the offline catalog cache.",
-                error,
-              );
-            }
-          }
-          return response;
-        })
-        .catch(async () => {
-          const cached = await caches.match(new URL("books.json", BASE_URL));
-          if (cached) return cached;
-          throw new Error("The archive catalog is unavailable offline.");
-        }),
-    );
+  if (
+    url.origin !== BASE_URL.origin ||
+    !url.pathname.startsWith(BASE_URL.pathname)
+  )
     return;
-  }
 
-  if (url.pathname.startsWith(BASE_URL.pathname)) {
-    event.respondWith(
-      (async () => {
-        const cache = await caches.open(APP_CACHE);
-        const cached = await cache.match(request);
-        const network = fetch(request)
-          .then((r) => {
-            if (r.ok) cache.put(request, r.clone());
-            return r;
-          })
-          .catch(() => null);
-        if (cached) {
-          event.waitUntil(network);
-          return cached;
-        }
-        return (await network) || Response.error();
-      })(),
-    );
-  }
+  const p = (path) => new URL(path, BASE_URL).pathname;
 
-  if (request.mode === "navigate") {
-    const requestedPath = url.pathname;
-    const indexPath = new URL("index.html", BASE_URL).pathname;
-    const readerPath = new URL("reader.html", BASE_URL).pathname;
+  if (url.pathname === p("books.json")) {
+    event.respondWith(booksJson(request));
+  } else if (
+    url.pathname.startsWith(p("books/")) &&
+    url.pathname.endsWith(".txt")
+  ) {
+    event.respondWith(bookText(request));
+  } else if (request.mode === "navigate") {
     if (
-      requestedPath !== BASE_URL.pathname &&
-      requestedPath !== indexPath &&
-      requestedPath !== readerPath
-    ) {
+      ![BASE_URL.pathname, p("index.html"), p("reader.html")].includes(
+        url.pathname,
+      )
+    )
       return;
-    }
-    event.respondWith(
-      fetch(request).catch(async () => {
-        const cache = await caches.open(APP_CACHE);
-        const page =
-          requestedPath === readerPath
-            ? new URL("reader.html", BASE_URL)
-            : new URL("index.html", BASE_URL);
-        const cached = await cache.match(page);
-        if (cached) return cached;
-        throw new Error("This page is unavailable offline.");
-      }),
-    );
-    return;
-  }
-
-  if (url.pathname.startsWith(BASE_URL.pathname)) {
-    event.respondWith(
-      caches.match(request).then((cached) => cached || fetch(request)),
-    );
+    event.respondWith(navigation(request, url, p("reader.html")));
+  } else {
+    event.respondWith(staleWhileRevalidate(event, request));
   }
 });
+
+async function booksJson(request) {
+  const cache = await caches.open(APP_CACHE);
+  try {
+    const res = await fetch(request);
+    if (res.ok) cache.put(new URL("books.json", BASE_URL), res.clone());
+    return res;
+  } catch {
+    return (
+      (await cache.match(new URL("books.json", BASE_URL))) || Response.error()
+    );
+  }
+}
+
+async function bookText(request) {
+  try {
+    return await fetch(request);
+  } catch {
+    // fresh when online
+    const saved = await (await caches.open(BOOK_CACHE)).match(request);
+    return saved || Response.error(); // only explicitly saved books
+  }
+}
+
+async function navigation(request, url, readerPath) {
+  try {
+    return await fetch(request);
+  } catch {
+    const cache = await caches.open(APP_CACHE);
+    const page = url.pathname === readerPath ? "reader.html" : "index.html";
+    return (await cache.match(new URL(page, BASE_URL))) || Response.error();
+  }
+}
+
+async function staleWhileRevalidate(event, request) {
+  const cache = await caches.open(APP_CACHE);
+  const cached = await cache.match(request);
+  const network = fetch(request)
+    .then((r) => {
+      if (r.status === 200) cache.put(request, r.clone());
+      return r;
+    })
+    .catch(() => null);
+  if (cached) {
+    event.waitUntil(network);
+    return cached;
+  }
+  return (await network) || Response.error();
+}
