@@ -1317,6 +1317,9 @@
   }
 
   async function init() {
+    window.EndingPWA?.register().catch((error) => {
+      showShareToast(`Offline support unavailable: ${error.message}`);
+    });
     if (!bookId) {
       renderError("No book was specified.");
       return;

@@ -4,6 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>3NDING | Books Archive</title>
+    <meta name="theme-color" content="#171b21" />
+    <meta
+      name="description"
+      content="Explore a growing library of stories and read them online or offline."
+    />
+    <link rel="manifest" href="manifest.webmanifest" />
     <link rel="stylesheet" href="css/index.css" />
     <link
       rel="preload"
@@ -39,6 +45,9 @@
       <p class="sub">
         Explore a growing library of stories and dive into your next great read.
       </p>
+      <button type="button" class="install-app-btn" id="installAppBtn" hidden>
+        Install 3NDING
+      </button>
     </header>
 
     <section
@@ -266,6 +275,7 @@
       hidden
     ></div>
 
+    <script src="js/pwa.js" defer></script>
     <script src="js/index.js" defer></script>
   </body>
 </html>
