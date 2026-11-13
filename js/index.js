@@ -363,26 +363,41 @@
 
   function updateOfflineButton(button, state) {
     button.dataset.state = state;
-    button.disabled = state === "saving" || state === "removing" || state === "unavailable";
+    button.disabled =
+      state === "saving" || state === "removing" || state === "unavailable";
+    const icon =
+      state === "saved"
+        ? '<path d="m5 12 4 4L19 6" />'
+        : state === "unavailable"
+          ? '<path d="M12 3v12m-4-4 4 4 4-4" /><path d="M5 5l14 14" />'
+          : '<path d="M12 3v12m-4-4 4 4 4-4" /><path d="M4 17v3h16v-3" />';
+    button.innerHTML = `<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${icon}</svg>`;
     if (state === "saved") {
-      button.textContent = "Saved";
-      button.setAttribute("aria-label", `Remove ${button.dataset.title} from offline storage`);
+      button.setAttribute(
+        "aria-label",
+        `Remove ${button.dataset.title} from offline storage`,
+      );
       button.title = `Remove ${button.dataset.title} from offline storage`;
     } else if (state === "saving") {
-      button.textContent = "Saving…";
-      button.setAttribute("aria-label", `Saving ${button.dataset.title} for offline reading`);
+      button.setAttribute(
+        "aria-label",
+        `Saving ${button.dataset.title} for offline reading`,
+      );
       button.title = `Saving ${button.dataset.title} for offline reading`;
     } else if (state === "removing") {
-      button.textContent = "Removing…";
-      button.setAttribute("aria-label", `Removing ${button.dataset.title} from offline storage`);
+      button.setAttribute(
+        "aria-label",
+        `Removing ${button.dataset.title} from offline storage`,
+      );
       button.title = `Removing ${button.dataset.title} from offline storage`;
     } else if (state === "unavailable") {
-      button.textContent = "Unavailable";
       button.setAttribute("aria-label", "Offline storage is unavailable");
       button.title = "Offline storage is unavailable";
     } else {
-      button.textContent = "Save offline";
-      button.setAttribute("aria-label", `Save ${button.dataset.title} for offline reading`);
+      button.setAttribute(
+        "aria-label",
+        `Save ${button.dataset.title} for offline reading`,
+      );
       button.title = `Save ${button.dataset.title} for offline reading`;
       button.disabled = false;
     }
@@ -395,8 +410,10 @@
     button.dataset.id = String(book.id);
     button.dataset.title = book.title;
     button.disabled = true;
-    button.textContent = "Checking…";
-    button.setAttribute("aria-label", `Checking offline availability for ${book.title}`);
+    button.setAttribute(
+      "aria-label",
+      `Checking offline availability for ${book.title}`,
+    );
     button.addEventListener("click", async (event) => {
       event.preventDefault();
       event.stopPropagation();
@@ -419,7 +436,11 @@
     });
     updateOfflineButton(button, "ready");
     button.disabled = true;
-    button.textContent = "Checking…";
+    button.setAttribute(
+      "aria-label",
+      `Checking offline availability for ${book.title}`,
+    );
+    button.title = `Checking offline availability for ${book.title}`;
     return button;
   }
 
@@ -474,9 +495,9 @@
       cardLink.href = `reader.html?id=${encodeURIComponent(book.id)}`;
       cardLink.setAttribute(
         "aria-label",
-        `${book.title} by ${book.author}${completed ? ", finished; read again" : ""}`,
+        `${book.title} by ${book.author}${completed ? ", Finished; read again?" : ""}`,
       );
-      card.title = `${book.title} by ${book.author}${completed ? ", finished; read again" : ""}`;
+      card.title = `${book.title} by ${book.author}${completed ? ", Finished; read again?" : ""}`;
       cardLink.className = "card-link";
       cardLink.innerHTML = `
         <div class="cover-wrap">

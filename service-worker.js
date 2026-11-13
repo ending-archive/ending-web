@@ -4,17 +4,13 @@ const BASE_URL = new URL("./", self.registration.scope);
 const APP_ASSETS = [
   "index.html",
   "reader.html",
-  "converter.html",
   "manifest.webmanifest",
   "books.json",
   "css/index.css",
   "css/reader.css",
-  "css/converter.css",
   "js/index.js",
   "js/reader.js",
-  "js/converter.js",
   "js/pwa.js",
-  "js/jszip.min.js",
   "fonts/fraunces.woff2",
   "fonts/literata.woff2",
   "fonts/spacemono.woff2",
@@ -45,11 +41,7 @@ self.addEventListener("activate", (event) => {
       .then((keys) =>
         Promise.all(
           keys
-            .filter(
-              (key) =>
-                key.startsWith("ending-app-") &&
-                key !== APP_CACHE,
-            )
+            .filter((key) => key.startsWith("ending-app-") && key !== APP_CACHE)
             .map((key) => caches.delete(key)),
         ),
       )
@@ -147,7 +139,8 @@ self.addEventListener("message", (event) => {
       .catch((error) =>
         replyPort.postMessage({
           ok: false,
-          error: error instanceof Error ? error.message : "Offline request failed.",
+          error:
+            error instanceof Error ? error.message : "Offline request failed.",
         }),
       ),
   );
@@ -170,7 +163,10 @@ self.addEventListener("fetch", (event) => {
                 response.clone(),
               );
             } catch (error) {
-              console.error("Unable to refresh the offline catalog cache.", error);
+              console.error(
+                "Unable to refresh the offline catalog cache.",
+                error,
+              );
             }
           }
           return response;
@@ -184,14 +180,24 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  if (url.pathname.startsWith(new URL("books/", BASE_URL).pathname)) {
+  if (url.pathname.startsWith(BASE_URL.pathname)) {
     event.respondWith(
-      caches.open(BOOK_CACHE).then(async (cache) => {
-        const saved = await cache.match(request);
-        return saved || fetch(request);
-      }),
+      (async () => {
+        const cache = await caches.open(APP_CACHE);
+        const cached = await cache.match(request);
+        const network = fetch(request)
+          .then((r) => {
+            if (r.ok) cache.put(request, r.clone());
+            return r;
+          })
+          .catch(() => null);
+        if (cached) {
+          event.waitUntil(network);
+          return cached;
+        }
+        return (await network) || Response.error();
+      })(),
     );
-    return;
   }
 
   if (request.mode === "navigate") {

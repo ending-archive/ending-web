@@ -457,6 +457,26 @@
     updateNotesButtons();
   }
 
+  function rebuildParagraphHighlights(pIndex) {
+    const p = el.surface.querySelector(
+      `.chapter-body [data-paragraph="${pIndex}"]`,
+    );
+    if (!p) return;
+    p.querySelectorAll("mark.text-highlight").forEach((m) =>
+      m.replaceWith(...m.childNodes),
+    );
+    p.normalize();
+    annotations.highlights
+      .filter(
+        (h) => h.chapterIndex === chapterIndex && h.paragraphIndex === pIndex,
+      )
+      .sort((a, b) => b.start - a.start)
+      .forEach((h) => {
+        const r = createTextRange(p, h.start, h.end);
+        if (r) wrapHighlight(r);
+      });
+  }
+
   function downloadBlob(blob, filename) {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -472,10 +492,13 @@
     const { action, id } = button.dataset;
     if (action === "delete-bookmark" || action === "delete-highlight") {
       const key = action === "delete-bookmark" ? "bookmarks" : "highlights";
+      const removed = annotations[key].find((i) => i.id === id);
       saveAnnotations({
         ...annotations,
-        [key]: annotations[key].filter((item) => item.id !== id),
+        [key]: annotations[key].filter((i) => i.id !== id),
       });
+      if (key === "highlights" && removed?.chapterIndex === chapterIndex)
+        rebuildParagraphHighlights(removed.paragraphIndex);
       return;
     }
     if (action === "jump-bookmark") {
@@ -537,7 +560,10 @@
   });
 
   el.exportNotesBtn.addEventListener("click", () => {
-    if (!bookMeta || !annotations.bookmarks.length && !annotations.highlights.length)
+    if (
+      !bookMeta ||
+      (!annotations.bookmarks.length && !annotations.highlights.length)
+    )
       return;
     const lines = [
       `${bookMeta.title}${bookMeta.author ? ` by ${bookMeta.author}` : ""}`,
@@ -769,7 +795,12 @@
         ...annotations,
         bookmarks: [
           ...annotations.bookmarks,
-          { id: makeAnnotationId(), chapterIndex, fraction, createdAt: Date.now() },
+          {
+            id: makeAnnotationId(),
+            chapterIndex,
+            fraction,
+            createdAt: Date.now(),
+          },
         ],
       })
     ) {
@@ -813,9 +844,7 @@
       return;
     }
     const fragment = range.cloneContents();
-    if (
-      fragment.querySelector?.("br, .text-highlight")
-    ) {
+    if (fragment.querySelector?.("br, .text-highlight")) {
       hideHighlightAction();
       return;
     }
@@ -848,9 +877,7 @@
       range.startContainer.nodeType === Node.ELEMENT_NODE
         ? range.startContainer
         : range.startContainer.parentElement;
-    const paragraph = startElement?.closest(
-      ".chapter-body [data-paragraph]",
-    );
+    const paragraph = startElement?.closest(".chapter-body [data-paragraph]");
     if (!paragraph || !el.surface.contains(paragraph)) return;
     const startPrefix = document.createRange();
     startPrefix.selectNodeContents(paragraph);
@@ -930,14 +957,16 @@
     let node;
     let offset = 0;
     while ((node = walker.nextNode())) {
-      nodes.push({ node, start: offset, end: offset + node.textContent.length });
+      nodes.push({
+        node,
+        start: offset,
+        end: offset + node.textContent.length,
+      });
       offset += node.textContent.length;
     }
     if (start < 0 || end <= start || end > offset) return null;
     const startNode = nodes.find((item) => start < item.end);
-    const endNode = nodes.find(
-      (item) => end > item.start && end <= item.end,
-    );
+    const endNode = nodes.find((item) => end > item.start && end <= item.end);
     if (!startNode || !endNode) return null;
     const range = document.createRange();
     range.setStart(startNode.node, start - startNode.start);
