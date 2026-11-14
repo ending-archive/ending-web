@@ -405,7 +405,7 @@ main {
   transform: translateX(-100%);
   transition:
     transform 0.25s ease,
-    visibility 0s linear 0.15s;
+    visibility 0s 0.25s;
   overflow-y: auto;
   padding: 1.4rem 1.3rem 2rem;
 }
@@ -413,6 +413,9 @@ main {
 .drawer.open {
   visibility: visible;
   transform: translateX(0);
+  transition:
+    transform 0.25s ease,
+    visibility 0s;
 }
 
 .drawer-head {
@@ -499,7 +502,9 @@ main {
     padding: 0;
     overflow: visible;
     transform: none;
-    transition: none;
+    transition:
+      transform 0.25s ease,
+      visibility 0s linear 0.25s;
     z-index: 1;
   }
 

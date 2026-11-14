@@ -266,7 +266,7 @@ body.theme-dark {
   transform: translateX(100%);
   transition:
     transform 0.25s ease,
-    visibility 0s linear 0.15s;
+    visibility 0s linear 0.25s;
   overflow-y: auto;
   padding: 1.4rem 1.3rem 2rem;
 }
@@ -274,6 +274,9 @@ body.theme-dark {
 .drawer.open {
   visibility: visible;
   transform: translateX(0);
+  transition:
+    transform 0.25s ease,
+    visibility 0s;
 }
 
 .notes-drawer {
@@ -953,6 +956,7 @@ body.theme-dark .text-highlight {
 @media (prefers-reduced-motion: reduce) {
   * {
     animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
     transition: none !important;
   }
 }
