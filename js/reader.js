@@ -410,9 +410,10 @@
 
   function updateNotesButtons() {
     const count = annotations.bookmarks.length + annotations.highlights.length;
-    el.openNotesBtn.textContent = `Saved passages (${count})`;
+    el.openNotesBtn.textContent = `Passages (${count})`;
+    el.openNotesBtn.style.textAlign = "center";
     el.surface.querySelectorAll("[data-open-notes]").forEach((button) => {
-      button.textContent = `Saved passages (${count})`;
+      button.textContent = `Passages (${count})`;
     });
     el.exportNotesBtn.disabled = count === 0;
   }
@@ -875,9 +876,17 @@
   });
   window.addEventListener("scroll", hideHighlightAction, { passive: true });
   window.addEventListener("resize", hideHighlightAction);
-  el.highlightSelectionBtn.addEventListener("mousedown", (event) => {
+  function preserveHighlightSelection(event) {
     event.preventDefault();
-  });
+  }
+  el.highlightSelectionBtn.addEventListener(
+    "pointerdown",
+    preserveHighlightSelection,
+  );
+  el.highlightSelectionBtn.addEventListener(
+    "mousedown",
+    preserveHighlightSelection,
+  );
   el.highlightSelectionBtn.addEventListener("click", () => {
     const selection = window.getSelection();
     if (!selection || selection.isCollapsed || !selection.rangeCount) return;
@@ -1139,8 +1148,8 @@
           </div>
 
           <div class="ending-actions">
-            <button type="button" class="nav-btn" data-open-notes>Saved passages (${annotations.bookmarks.length + annotations.highlights.length})</button>
-            <a href="index.html" class="nav-btn">Back to the archive</a>
+            <button type="button" class="nav-btn" data-open-notes>Passages (${annotations.bookmarks.length + annotations.highlights.length})</button>
+            <a href="index.html" class="nav-btn">Archive</a>
           </div>
         </main>`;
     applySettings();
@@ -1175,11 +1184,6 @@
       .querySelector("[data-open-notes]")
       .addEventListener("click", openNotesDrawer);
 
-    document.getElementById("restartBtn").addEventListener("click", () => {
-      finished = false;
-      dirty = false;
-      loadChapter(0, false, false);
-    });
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   }
 
@@ -1367,9 +1371,6 @@
   }
 
   async function init() {
-    window.EndingPWA?.register().catch((error) => {
-      showShareToast(`Offline support unavailable: ${error.message}`);
-    });
     if (!bookId) {
       renderError("No book was specified.");
       return;

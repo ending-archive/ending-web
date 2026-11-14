@@ -107,32 +107,6 @@ header p.sub {
   margin: 0;
 }
 
-.install-app-btn {
-  margin-top: 1rem;
-  padding: 0.55rem 0.8rem;
-  border: 1px solid rgba(184, 146, 63, 0.45);
-  border-radius: var(--radius);
-  background: transparent;
-  color: var(--brass-bright);
-  font:
-    0.75rem "Space Mono",
-    monospace;
-  cursor: pointer;
-}
-
-.install-app-btn:hover {
-  background: rgba(184, 146, 63, 0.1);
-}
-
-.install-app-btn:focus-visible {
-  outline: 2px solid var(--brass-bright);
-  outline-offset: 2px;
-}
-
-.install-app-btn[hidden] {
-  display: none;
-}
-
 .reading-summary {
   position: relative;
   z-index: 1;
@@ -140,10 +114,11 @@ header p.sub {
   grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.7fr);
   align-items: center;
   gap: 1.25rem;
-  max-width: 1100px;
+  max-width: 1000px;
+  width: 90%;
   margin: 1rem auto 0;
   padding: 0.85rem 1.25rem;
-  border-block: 1px solid rgba(184, 146, 63, 0.2);
+  border: 1px solid rgba(184, 146, 63, 0.2);
   background: rgba(255, 255, 255, 0.025);
 }
 
@@ -192,7 +167,7 @@ header p.sub {
   border-radius: var(--radius);
   background: var(--ink-soft);
   color: var(--text-light);
-  font: inherit;
+  font-family: inherit;
   font-size: 0.75rem;
 }
 

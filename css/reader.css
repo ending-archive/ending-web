@@ -622,7 +622,7 @@ body.theme-dark .text-highlight {
     calc(0.65rem + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid var(--read-line);
   background: var(--read-bg);
-  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 -2px 24px rgba(0, 0, 0, 0.08);
 }
 
 .nav-btn {

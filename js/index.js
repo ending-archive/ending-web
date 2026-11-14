@@ -27,7 +27,6 @@
   const drawer = document.getElementById("drawer");
   const drawerBackdrop = document.getElementById("drawerBackdrop");
   const drawerCloseBtn = document.getElementById("drawerCloseBtn");
-  const installAppBtn = document.getElementById("installAppBtn");
 
   const SKELETON_COUNT = 10;
   const MIN_LOADING_MS = 300;
@@ -48,7 +47,6 @@
   let currentPage = loadLibraryPage();
   let lastMatches = [];
   let catalogNo = new Map();
-  let offlineStatusRequest = 0;
 
   function escapeHtml(str) {
     return String(str).replace(
@@ -173,7 +171,7 @@
       (date) => date >= weekStart && date <= today,
     ).length;
 
-    readingStreak.textContent = `${streak} ${streak === 1 ? "day" : "days"}`;
+    readingStreak.textContent = `${streak} ${streak === 1 ? "Day" : "Days"}`;
     weeklyGoalSelect.value = String(weeklyGoal);
     weeklyGoalTrack.setAttribute("aria-valuemax", String(weeklyGoal));
     weeklyGoalTrack.setAttribute(
@@ -185,7 +183,7 @@
       `${daysThisWeek} of ${weeklyGoal} days this week`,
     );
     weeklyGoalFill.style.width = `${Math.min(100, (daysThisWeek / weeklyGoal) * 100)}%`;
-    weeklyGoalCount.textContent = `${daysThisWeek} / ${weeklyGoal} ${weeklyGoal === 1 ? "day" : "days"}`;
+    weeklyGoalCount.textContent = `${daysThisWeek} / ${weeklyGoal} ${weeklyGoal === 1 ? "Day" : "Days"}`;
   }
 
   function scheduleReadingSummaryRefresh() {
@@ -372,122 +370,6 @@
     return book.file || `books/${book.id}.txt`;
   }
 
-  function updateOfflineButton(button, state) {
-    button.dataset.state = state;
-    button.disabled =
-      state === "saving" || state === "removing" || state === "unavailable";
-    const icon =
-      state === "saved"
-        ? '<path d="m5 12 4 4L19 6" />'
-        : state === "unavailable"
-          ? '<path d="M12 3v12m-4-4 4 4 4-4" /><path d="M5 5l14 14" />'
-          : '<path d="M12 3v12m-4-4 4 4 4-4" /><path d="M4 17v3h16v-3" />';
-    button.innerHTML = `<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${icon}</svg>`;
-    if (state === "saved") {
-      button.setAttribute(
-        "aria-label",
-        `Remove ${button.dataset.title} from offline storage`,
-      );
-      button.title = `Remove ${button.dataset.title} from offline storage`;
-    } else if (state === "saving") {
-      button.setAttribute(
-        "aria-label",
-        `Saving ${button.dataset.title} for offline reading`,
-      );
-      button.title = `Saving ${button.dataset.title} for offline reading`;
-    } else if (state === "removing") {
-      button.setAttribute(
-        "aria-label",
-        `Removing ${button.dataset.title} from offline storage`,
-      );
-      button.title = `Removing ${button.dataset.title} from offline storage`;
-    } else if (state === "unavailable") {
-      button.setAttribute("aria-label", "Offline storage is unavailable");
-      button.title = "Offline storage is unavailable";
-    } else {
-      button.setAttribute(
-        "aria-label",
-        `Save ${button.dataset.title} for offline reading`,
-      );
-      button.title = `Save ${button.dataset.title} for offline reading`;
-      button.disabled = false;
-    }
-  }
-
-  function createOfflineButton(book) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "offline-btn";
-    button.dataset.id = String(book.id);
-    button.dataset.title = book.title;
-    button.disabled = true;
-    button.setAttribute(
-      "aria-label",
-      `Checking offline availability for ${book.title}`,
-    );
-    button.addEventListener("click", async (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      const wasSaved = button.dataset.state === "saved";
-      updateOfflineButton(button, wasSaved ? "removing" : "saving");
-      try {
-        if (wasSaved) {
-          await window.EndingPWA.removeBook(getBookFile(book));
-          updateOfflineButton(button, "ready");
-          showShareStatus(`Removed "${book.title}" from offline storage.`);
-        } else {
-          await window.EndingPWA.saveBook(getBookFile(book));
-          updateOfflineButton(button, "saved");
-          showShareStatus(`"${book.title}" is ready for offline reading.`);
-        }
-      } catch (error) {
-        updateOfflineButton(button, wasSaved ? "saved" : "ready");
-        showShareStatus(`Couldn't update offline copy: ${error.message}`);
-      }
-    });
-    updateOfflineButton(button, "ready");
-    button.disabled = true;
-    button.setAttribute(
-      "aria-label",
-      `Checking offline availability for ${book.title}`,
-    );
-    button.title = `Checking offline availability for ${book.title}`;
-    return button;
-  }
-
-  async function refreshOfflineStatuses(books) {
-    const requestId = ++offlineStatusRequest;
-    const buttons = [...grid.querySelectorAll(".offline-btn")];
-    if (!window.EndingPWA || !buttons.length) {
-      buttons.forEach((button) => updateOfflineButton(button, "unavailable"));
-      return;
-    }
-
-    try {
-      const { statuses } = await window.EndingPWA.getBookStatuses(
-        books.map(getBookFile),
-      );
-      if (requestId !== offlineStatusRequest) return;
-      const savedById = new Map(
-        books.map((book, index) => [
-          String(book.id),
-          Boolean(statuses[index]?.saved),
-        ]),
-      );
-      buttons.forEach((button) => {
-        if (!button.isConnected) return;
-        updateOfflineButton(
-          button,
-          savedById.get(button.dataset.id) ? "saved" : "ready",
-        );
-      });
-    } catch (error) {
-      if (requestId !== offlineStatusRequest) return;
-      buttons.forEach((button) => updateOfflineButton(button, "unavailable"));
-      showShareStatus(`Offline storage unavailable: ${error.message}`);
-    }
-  }
-
   function renderBooks(books) {
     grid.innerHTML = "";
     books.forEach((book, i) => {
@@ -547,15 +429,9 @@
         toggleFavorite(id);
       });
 
-      card.append(
-        cardLink,
-        favoriteButton,
-        createShareButton(book),
-        createOfflineButton(book),
-      );
+      card.append(cardLink, favoriteButton, createShareButton(book));
       grid.appendChild(card);
     });
-    refreshOfflineStatuses(books);
   }
 
   async function copyBookLink(url) {
@@ -803,22 +679,6 @@
     status.append(text);
   }
 
-  installAppBtn.addEventListener("click", async () => {
-    installAppBtn.disabled = true;
-    try {
-      const choice = await window.EndingPWA.promptInstall();
-      if (choice?.outcome === "accepted") showShareStatus("3NDING installed.");
-    } catch (error) {
-      showShareStatus(`Couldn't install 3NDING: ${error.message}`);
-    } finally {
-      installAppBtn.hidden = true;
-      installAppBtn.disabled = false;
-    }
-  });
-  document.addEventListener("pwa-installable", () => {
-    installAppBtn.hidden = false;
-  });
-
   function applyFilter(resetPage) {
     if (resetPage) {
       currentPage = 1;
@@ -947,9 +807,6 @@
   scheduleReadingSummaryRefresh();
 
   async function loadBooks() {
-    window.EndingPWA?.register().catch((error) => {
-      showShareStatus(`Offline support unavailable: ${error.message}`);
-    });
     renderSkeletons(SKELETON_COUNT);
     setStatus("Cataloging the archive…", true);
 
