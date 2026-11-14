@@ -839,52 +839,9 @@ main {
     border-color 0.15s ease;
 }
 
-.share-btn svg,
-.offline-btn svg {
+.share-btn svg {
   width: 16px;
   height: 16px;
-}
-
-.offline-btn {
-  position: absolute;
-  top: calc(2.65rem + 38px);
-  right: 0.4rem;
-  z-index: 2;
-  width: 30px;
-  height: 30px;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  border-radius: 50%;
-  background: rgba(23, 27, 33, 0.55);
-  color: #f2e9d3;
-  cursor: pointer;
-  transition:
-    transform 0.15s ease,
-    background 0.15s ease,
-    border-color 0.15s ease;
-}
-
-.offline-btn[data-state="saved"] {
-  border-color: var(--brass-bright);
-  color: var(--brass-bright);
-}
-
-.offline-btn:hover:not(:disabled) {
-  transform: scale(1.08);
-  background: rgba(23, 27, 33, 0.85);
-}
-
-.offline-btn:disabled {
-  opacity: 0.7;
-  cursor: wait;
-}
-
-.offline-btn:focus-visible {
-  outline: 2px solid var(--brass-bright);
-  outline-offset: 2px;
 }
 
 .share-btn:hover {
