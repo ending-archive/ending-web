@@ -587,7 +587,7 @@ body.theme-dark {
 }
 
 .completion-kicker {
-  margin: 0 0 0.8rem;
+  margin: 0.8rem 0 0.8rem;
   font-family: "Space Mono", monospace;
   font-size: 0.68rem;
   letter-spacing: 0.13em;
@@ -799,4 +799,12 @@ body.theme-dark {
     padding: 0.55rem 0.65rem;
     font-size: 0.7rem;
   }
+}
+
+.saved-item-excerpt {
+  margin-top: 0.35rem;
+  color: var(--text-light);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
 }

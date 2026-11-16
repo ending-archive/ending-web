@@ -33,3 +33,41 @@ export function overallPercent(chapterSpans, chapterIndex) {
   const { start, span } = chapterSpans[chapterIndex];
   return Math.min(100, Math.max(0, (start + span * scrollFraction()) * 100));
 }
+
+export function topbarHeight() {
+  return document.querySelector(".topbar")?.getBoundingClientRect().height || 0;
+}
+
+// Paragraph index + fractional offset: stable across font/size/width changes.
+export function currentAnchor() {
+  if (window.scrollY <= 4) return null;
+  const top = topbarHeight();
+  for (const p of document.querySelectorAll(".chapter-body [data-paragraph]")) {
+    const r = p.getBoundingClientRect();
+    if (r.bottom > top + 4) {
+      return {
+        paragraph: Number(p.dataset.paragraph),
+        offset: r.height
+          ? Math.min(1, Math.max(0, (top - r.top) / r.height))
+          : 0,
+        excerpt: p.textContent.trim().slice(0, 80),
+      };
+    }
+  }
+  return null;
+}
+
+export function scrollToAnchor(anchor) {
+  if (!anchor || !Number.isInteger(anchor.paragraph)) return false;
+  const p = document.querySelector(
+    `.chapter-body [data-paragraph="${anchor.paragraph}"]`,
+  );
+  if (!p) return false;
+  const top =
+    p.getBoundingClientRect().top +
+    window.scrollY -
+    topbarHeight() +
+    (anchor.offset || 0) * p.offsetHeight;
+  window.scrollTo({ top: Math.max(0, top), left: 0, behavior: "instant" });
+  return true;
+}

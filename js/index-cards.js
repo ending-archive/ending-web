@@ -115,6 +115,7 @@ export function createCatalogCards({
         ? storedPercent
         : Math.min(100, Math.max(0, legacyFraction * 100));
       if (!Number.isFinite(percent)) return;
+      if (percent < 1) return;
 
       if (!mostRecent || progress.updatedAt > mostRecent.updatedAt) {
         mostRecent = {

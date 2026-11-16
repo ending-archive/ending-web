@@ -41,7 +41,7 @@ function isImplicitHeading(line) {
   );
 }
 
-export function parseBook(raw, fallbackTitle) {
+function parseBookRaw(raw, fallbackTitle) {
   const text = raw.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n");
   const lines = text.split("\n");
   const wholeBook = [{ title: fallbackTitle, text: text.trim() }];
@@ -70,7 +70,7 @@ export function parseBook(raw, fallbackTitle) {
 
   const result = [];
   const preamble = lines.slice(0, headings[0].index).join("\n").trim();
-  if (preamble.length > 300) {
+  if (preamble && (explicit.length > 0 || preamble.length > 300)) {
     result.push({ title: "Beginning", text: preamble });
   }
 
@@ -131,4 +131,32 @@ export function paragraphize(text) {
       return html;
     })
     .join("");
+}
+
+function hashString(str) {
+  let hash = 5381;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) + hash + str.charCodeAt(i)) | 0;
+  }
+  return (hash >>> 0).toString(36);
+}
+
+// "slug.hash" - survives re-ordering and most edits; index is only a fallback.
+export function chapterKey(title, text) {
+  const slug = String(title)
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40);
+  return `${slug || "chapter"}.${hashString(String(text).slice(0, 200))}`;
+}
+
+export function parseBook(raw, fallbackTitle) {
+  const seen = new Map();
+  return parseBookRaw(raw, fallbackTitle).map((chapter) => {
+    const base = chapterKey(chapter.title, chapter.text);
+    const count = (seen.get(base) || 0) + 1;
+    seen.set(base, count);
+    return { ...chapter, key: count > 1 ? `${base}-${count}` : base };
+  });
 }

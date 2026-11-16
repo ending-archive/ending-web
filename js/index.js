@@ -82,6 +82,7 @@ function runArchive() {
     if (btn) {
       const active = favorites.has(key);
       btn.classList.toggle("active", active);
+      btn.title = active ? "Remove from favorites" : "Add to favorites";
       btn.setAttribute("aria-pressed", String(active));
       btn.setAttribute(
         "aria-label",
@@ -239,9 +240,7 @@ function runArchive() {
       "aria-pressed",
       String(activeFilter === "finished"),
     );
-    if (activeFilter !== "all" && searchInput.value.trim()) {
-      searchInput.value = "";
-    }
+    
     applyFilter(true);
   });
 
@@ -255,9 +254,7 @@ function runArchive() {
       "aria-pressed",
       String(activeFilter === "favorites"),
     );
-    if (activeFilter !== "all" && searchInput.value.trim()) {
-      searchInput.value = "";
-    }
+    
     applyFilter(true);
   });
 

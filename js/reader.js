@@ -3,14 +3,17 @@ import { createReaderSettings } from "./reader-settings.js";
 import { loadFinishedBooks, saveFinishedBooks } from "./index-storage.js";
 import {
   buildChapterSpans,
+  currentAnchor,
   loadProgress,
   overallPercent,
   saveProgress,
   scrollFraction,
+  scrollToAnchor,
 } from "./reader-progress.js";
 import { createReaderSharing, downloadBlob } from "./reader-sharing.js";
 
 function runReader() {
+  if ("scrollRestoration" in history) history.scrollRestoration = "manual";
   const params = new URLSearchParams(location.search);
   const bookId = params.get("id");
 
@@ -50,6 +53,7 @@ function runReader() {
   let finishedBooks = loadFinishedBooks();
   let chapterIndex = 0;
   let saveTimer = null;
+  let loadSeq = 0;
 
   let dirty = false;
   let suppressScrollEvents = false;
@@ -57,7 +61,53 @@ function runReader() {
 
   const settingsController = createReaderSettings(el, {
     onOpenNotes: () => renderNotes(),
+    onBeforeChange: () => (chapters.length ? currentAnchor() : null),
+    onAfterChange: (anchor) => {
+      if (!anchor) return;
+      suppressScrollEvents = true;
+      scrollToAnchor(anchor);
+      fontsReady().then(() => {
+        scrollToAnchor(anchor);
+        requestAnimationFrame(() => {
+          suppressScrollEvents = false;
+          dirty = true;
+          updateProgressUI();
+          persistProgress();
+        });
+      });
+    },
   });
+
+  function resolveChapterIndex(key, fallbackIndex) {
+    if (typeof key === "string" && key) {
+      const exact = chapters.findIndex((chapter) => chapter.key === key);
+      if (exact >= 0) return exact;
+      const slug = key.slice(0, key.lastIndexOf("."));
+      if (slug) {
+        const bySlug = chapters.findIndex((chapter) =>
+          chapter.key.startsWith(slug + "."),
+        );
+        if (bySlug >= 0) return bySlug;
+      }
+    }
+    return Number.isInteger(fallbackIndex) &&
+      fallbackIndex >= 0 &&
+      fallbackIndex < chapters.length
+      ? fallbackIndex
+      : -1;
+  }
+
+  // Resolves once the fonts used for the text are actually loaded.
+  function fontsReady() {
+    const family = { serif: "Literata", sans: "Work Sans", mono: "Space Mono" }[
+      settingsController.settings.font
+    ];
+    return Promise.all([
+      document.fonts.load(`1em "${family}"`),
+      document.fonts.load(`600 1em "Fraunces"`),
+      document.fonts.ready,
+    ]).catch(() => {});
+  }
 
   function annotationKey(id) {
     return ANNOTATIONS_KEY + id;
@@ -81,7 +131,7 @@ function runReader() {
                 validAnnotationId(item.id) &&
                 Number.isInteger(item.chapterIndex) &&
                 item.chapterIndex >= 0 &&
-                item.chapterIndex < chapters.length &&
+                
                 Number.isFinite(item.fraction) &&
                 item.fraction >= 0 &&
                 item.fraction <= 1,
@@ -117,11 +167,19 @@ function runReader() {
   function renderNotes() {
     const bookmarkItems = annotations.bookmarks
       .map((item) => {
-        const title = chapters[item.chapterIndex]?.title || "Chapter";
+        const index = resolveChapterIndex(item.chapterKey, item.chapterIndex);
+        const available = index >= 0;
+        const title = available
+          ? chapters[index].title || `Chapter ${index + 1}`
+          : "Chapter unavailable";
+        const excerpt = item.excerpt
+          ? `<div class="saved-item-excerpt">“${escapeHtml(item.excerpt)}…”</div>`
+          : "";
         return `<article class="saved-item">
           <div class="saved-item-label">${escapeHtml(title)} · ${Math.round(item.fraction * 100)}%</div>
+          ${excerpt}
           <div class="saved-item-actions">
-            <button type="button" class="saved-action" data-action="jump-bookmark" data-id="${item.id}">Go to</button>
+            <button type="button" class="saved-action" data-action="jump-bookmark" data-id="${item.id}" ${available ? "" : "disabled"}>Go to</button>
             <button type="button" class="saved-action" data-action="delete-bookmark" data-id="${item.id}" aria-label="Remove bookmark">Remove</button>
           </div>
         </article>`;
@@ -151,18 +209,28 @@ function runReader() {
       const bookmark = annotations.bookmarks.find((item) => item.id === id);
       if (!bookmark) return;
       settingsController.closeNotesDrawer();
-      loadChapter(bookmark.chapterIndex, false, false);
-      document.fonts.ready.then(() => {
+      const targetIndex = resolveChapterIndex(
+        bookmark.chapterKey,
+        bookmark.chapterIndex,
+      );
+      if (targetIndex < 0) {
+        showShareToast("That chapter is no longer in this book.");
+        return;
+      }
+      loadChapter(targetIndex, false, false);
+      fontsReady().then(() => {
         requestAnimationFrame(() =>
           requestAnimationFrame(() => {
             const max =
               document.documentElement.scrollHeight - window.innerHeight;
             suppressScrollEvents = true;
-            window.scrollTo({
-              top: Math.max(0, max) * bookmark.fraction,
-              left: 0,
-              behavior: "instant",
-            });
+            if (!(Number.isInteger(bookmark.paragraph) && scrollToAnchor(bookmark))) {
+              window.scrollTo({
+                top: Math.max(0, max) * bookmark.fraction,
+                left: 0,
+                behavior: "instant",
+              });
+            }
             requestAnimationFrame(() => {
               suppressScrollEvents = false;
               onScroll();
@@ -182,7 +250,8 @@ function runReader() {
       "",
       "BOOKMARKS",
       ...annotations.bookmarks.map((item) => {
-        const title = chapters[item.chapterIndex]?.title || "Chapter";
+        const resolved = resolveChapterIndex(item.chapterKey, item.chapterIndex);
+        const title = chapters[resolved]?.title || "Chapter";
         return `- ${title} (${Math.round(item.fraction * 100)}% through chapter)`;
       }),
       "",
@@ -227,8 +296,12 @@ function runReader() {
 
   function persistProgress() {
     if (!dirty || !bookId || !chapterSpans.length) return;
+    const anchor = currentAnchor();
     saveProgress(bookId, {
       chapterIndex,
+      chapterKey: chapters[chapterIndex]?.key,
+      paragraph: anchor ? anchor.paragraph : null,
+      offset: anchor ? anchor.offset : 0,
       scrollFraction: scrollFraction(),
       progressPercent: overallPercent(chapterSpans, chapterIndex),
       updatedAt: Date.now(),
@@ -262,6 +335,7 @@ function runReader() {
       return;
     }
     const fraction = scrollFraction();
+    const anchor = currentAnchor();
     const existing = annotations.bookmarks.some(
       (item) =>
         item.chapterIndex === chapterIndex &&
@@ -279,7 +353,11 @@ function runReader() {
           {
             id: makeAnnotationId(),
             chapterIndex,
+            chapterKey: chapters[chapterIndex]?.key,
             fraction,
+            paragraph: anchor ? anchor.paragraph : null,
+            offset: anchor ? anchor.offset : 0,
+            excerpt: anchor ? anchor.excerpt : "",
             createdAt: Date.now(),
           },
         ],
@@ -300,6 +378,24 @@ function runReader() {
       ? "Book finished"
       : "Reached the end?";
     panel.append(heading);
+
+    if (finishedBooks.has(String(bookId))) {
+      const undoButton = document.createElement("button");
+      undoButton.type = "button";
+      undoButton.className = "nav-btn completion-btn";
+      undoButton.textContent = "Mark as unfinished";
+      undoButton.addEventListener("click", () => {
+        const latest = loadFinishedBooks();
+        latest.delete(String(bookId));
+        if (!saveFinishedBooks(latest)) {
+          showShareToast("This change couldn't be saved on this device.");
+          return;
+        }
+        finishedBooks = latest;
+        renderCompletionPanel();
+      });
+      panel.append(undoButton);
+    }
 
     if (!finishedBooks.has(String(bookId))) {
       const finishButton = document.createElement("button");
@@ -380,12 +476,17 @@ function runReader() {
     el.surface.innerHTML = `<div class="state-box"><span class="dot"></span> ${message}</div>`;
   }
 
-  function renderError(message) {
+  function renderError(message, retry = false) {
     el.surface.innerHTML = `<div class="state-box">${escapeHtml(message)}<br><br>
+        ${retry ? '<button type="button" class="nav-btn" id="retryBtn">Try again</button> ' : ""}
         <a href="index.html" class="nav-btn">Back to the archive</a></div>`;
+    document
+      .getElementById("retryBtn")
+      ?.addEventListener("click", () => location.reload());
   }
 
   function loadChapter(index, restoreScroll, persist = !restoreScroll) {
+    const thisLoad = ++loadSeq;
     chapterIndex = Math.min(Math.max(index, 0), chapters.length - 1);
     const chapter = chapters[chapterIndex];
     const total = chapters.length;
@@ -399,13 +500,14 @@ function runReader() {
       )
       .join("");
 
+    const eyebrow = total > 1 ? `${chapterIndex + 1} / ${total}` : "";
     const forwardBtn = isLast
       ? `<a class="nav-btn" href="index.html">Archive</a>`
       : `<button class="nav-btn" id="nextBtn">Next</button>`;
 
     el.surface.innerHTML = `
         <div class="reader-page">
-          <div class="chapter-eyebrow">Chapter ${chapterIndex + 1} of ${total}</div>
+          ${eyebrow ? `<div class="chapter-eyebrow">${eyebrow}</div>` : ""}
           <h1 class="chapter-title">${escapeHtml(title)}</h1>
           <div class="chapter-body font-${settingsController.settings.font}">${paragraphize(chapter.text)}</div>
           ${isLast ? '<section class="completion-panel" id="completionPanel" aria-live="polite"></section>' : ""}
@@ -432,23 +534,33 @@ function runReader() {
       loadChapter(parseInt(e.target.value, 10), false);
     });
 
-    const jumpTo = (top) => {
+    const jumpTo = (top, anchor) => {
       suppressScrollEvents = true;
-      window.scrollTo({ top, left: 0, behavior: "instant" });
+      if (!(anchor && scrollToAnchor(anchor))) {
+        window.scrollTo({ top, left: 0, behavior: "instant" });
+      }
       window.requestAnimationFrame(() => {
         window.requestAnimationFrame(() => {
           suppressScrollEvents = false;
+          updateProgressUI();
         });
       });
     };
 
     if (restoreScroll) {
       const saved = loadProgress(bookId);
-      if (saved && saved.chapterIndex === chapterIndex) {
-        document.fonts.ready.then(() => {
+      const savedIndex = saved
+        ? resolveChapterIndex(saved.chapterKey, saved.chapterIndex)
+        : -1;
+      if (saved && savedIndex === chapterIndex) {
+        fontsReady().then(() => {
+          if (thisLoad !== loadSeq) return;
           const max =
             document.documentElement.scrollHeight - window.innerHeight;
-          jumpTo(Math.max(0, max) * (saved.scrollFraction || 0));
+          jumpTo(
+            Math.max(0, max) * (saved.scrollFraction || 0),
+            Number.isInteger(saved.paragraph) ? saved : null,
+          );
         });
       }
     } else {
@@ -465,6 +577,10 @@ function runReader() {
   async function init() {
     if (!bookId) {
       renderError("No book was specified.");
+      return;
+    }
+    if (!/^[\w-]{1,100}$/.test(bookId)) {
+      renderError("That book link isn't valid.");
       return;
     }
 
@@ -484,6 +600,11 @@ function runReader() {
       const fallbackTitle = bookMeta ? bookMeta.title : `Book ${bookId}`;
       el.topbarTitle.textContent = fallbackTitle;
 
+      if (libraryLoaded && !bookMeta) {
+        renderError("This book isn't in the archive.");
+        return;
+      }
+
       renderState("Opening the book…");
 
       const filePath =
@@ -492,11 +613,16 @@ function runReader() {
       let raw;
       try {
         const res = await fetch(filePath);
+        if (res.status === 404) {
+          renderError(`"${fallbackTitle}" isn't on the archive yet.`);
+          return;
+        }
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         raw = await res.text();
       } catch (err) {
         renderError(
-          `"${fallbackTitle}" isn't on the archive yet — ${filePath} couldn't be found.`,
+          `"${fallbackTitle}" couldn't be loaded. Check your connection and try again.`,
+          true,
         );
         return;
       }
@@ -516,24 +642,19 @@ function runReader() {
       settingsController.applySettings();
 
       const saved = loadProgress(bookId);
-      const startIndex = Number.isInteger(saved?.chapterIndex)
-        ? saved.chapterIndex
-        : 0;
+      const resolvedStart = saved
+        ? resolveChapterIndex(saved.chapterKey, saved.chapterIndex)
+        : -1;
+      const startIndex = resolvedStart >= 0 ? resolvedStart : 0;
       loadChapter(startIndex, true, false);
-      const savedProgress =
-        saved && typeof saved === "object" && !Array.isArray(saved)
-          ? saved
-          : {};
-      const hasSavedPosition =
-        saved?.chapterIndex === chapterIndex &&
-        Number.isFinite(saved?.scrollFraction);
-      saveProgress(bookId, {
-        ...savedProgress,
-        chapterIndex,
-        scrollFraction: hasSavedPosition ? saved.scrollFraction : 0,
-        progressPercent: hasSavedPosition ? saved.progressPercent : 0,
-        updatedAt: Date.now(),
-      });
+      // Migrate legacy records only; never bump updatedAt just for opening.
+      if (saved && !saved.chapterKey && Number.isFinite(saved.updatedAt)) {
+        saveProgress(bookId, {
+          ...saved,
+          chapterIndex,
+          chapterKey: chapters[chapterIndex]?.key,
+        });
+      }
 
       window.addEventListener("scroll", onScroll, { passive: true });
       window.addEventListener("pagehide", persistProgress);

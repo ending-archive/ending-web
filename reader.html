@@ -30,6 +30,14 @@
         const s = JSON.parse(localStorage.getItem("ending:settings") || "{}");
         if (["paper", "sepia", "dark"].includes(s.theme))
           document.body.className = "theme-" + s.theme;
+        const root = document.documentElement.style;
+        const size = Number(s.size);
+        if (Number.isFinite(size))
+          root.setProperty(
+            "--font-size",
+            Math.min(26, Math.max(14, size)) + "px",
+          );
+        if (s.align === "justify") root.setProperty("--text-align", "justify");
       } catch {}
     </script>
     <div class="topbar">

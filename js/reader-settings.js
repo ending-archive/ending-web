@@ -28,7 +28,10 @@ function loadSettings() {
   }
 }
 
-export function createReaderSettings(el, { onOpenNotes } = {}) {
+export function createReaderSettings(
+  el,
+  { onOpenNotes, onBeforeChange, onAfterChange } = {},
+) {
   let settings = loadSettings();
 
   function saveSettings() {
@@ -63,9 +66,11 @@ export function createReaderSettings(el, { onOpenNotes } = {}) {
   }
 
   function updateSetting(key, value) {
+    const token = onBeforeChange?.();
     settings[key] = value;
     saveSettings();
     applySettings();
+    onAfterChange?.(token);
   }
 
   el.fontRow.addEventListener("click", (event) => {
@@ -87,9 +92,11 @@ export function createReaderSettings(el, { onOpenNotes } = {}) {
     updateSetting("size", Math.max(SIZE_MIN, settings.size - SIZE_STEP));
   });
   el.resetBtn.addEventListener("click", () => {
+    const token = onBeforeChange?.();
     settings = { ...DEFAULT_SETTINGS };
     saveSettings();
     applySettings();
+    onAfterChange?.(token);
   });
 
   function openDrawer() {
