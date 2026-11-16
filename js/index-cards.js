@@ -7,7 +7,7 @@ export function createCatalogCards({
   getCatalogNo,
   getProgress,
   isFavorite,
-  isFinishedProgress,
+  isFinished,
   isNewArrival,
   toggleFavorite,
   createShareButton,
@@ -36,7 +36,7 @@ export function createCatalogCards({
       const cover = escapeHtml(book.cover);
       const id = String(book.id);
       const active = isFavorite(id);
-      const completed = isFinishedProgress(getProgress(book));
+      const finished = isFinished(id);
       const card = document.createElement("article");
       card.dataset.id = id;
       const catalogNo = getCatalogNo().get(id) || 0;
@@ -46,14 +46,14 @@ export function createCatalogCards({
       cardLink.href = `reader.html?id=${encodeURIComponent(book.id)}`;
       cardLink.setAttribute(
         "aria-label",
-        `${book.title} by ${book.author}${completed ? ", Finished; read again?" : ""}`,
+        `${book.title} by ${book.author}`,
       );
-      card.title = `${book.title} by ${book.author}${completed ? ", Finished; read again?" : ""}`;
+      card.title = `${book.title} by ${book.author}`;
       cardLink.className = "card-link";
       cardLink.innerHTML = `
         <div class="cover-wrap">
           <img src="${cover}" alt="Cover of ${title}" loading="lazy">
-          ${completed ? '<span class="card-state">Finished</span>' : ""}
+          ${finished ? '<span class="finished-badge"><svg aria-hidden="true" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 8 3.2 3.2L13 4.5"/></svg>Finished</span>' : ""}
         </div>
         <div class="card-body">
           <p class="card-title">${title}</p>
@@ -93,18 +93,17 @@ export function createCatalogCards({
   }
 
   function renderContinueReading(books) {
-    const reading = [];
+    let mostRecent = null;
     books.forEach((book) => {
+      if (isFinished(book.id)) return;
       const progress = getProgress(book);
-      if (!progress) return;
       if (
+        !progress ||
         !Number.isInteger(progress.chapterIndex) ||
         !Number.isFinite(progress.updatedAt)
       ) {
         return;
       }
-
-      if (isFinishedProgress(progress)) return;
 
       const storedPercent = Number(progress.progressPercent);
       const legacyFraction = Number(progress.scrollFraction);
@@ -115,112 +114,85 @@ export function createCatalogCards({
       const percent = hasStoredPercent
         ? storedPercent
         : Math.min(100, Math.max(0, legacyFraction * 100));
-      if (!Number.isFinite(percent) || percent <= 0 || percent >= 100) return;
+      if (!Number.isFinite(percent)) return;
 
-      reading.push({
-        book,
-        chapterIndex: progress.chapterIndex,
-        updatedAt: progress.updatedAt,
-        percent,
-        hasStoredPercent,
-      });
-    });
-
-    reading.sort((a, b) => b.updatedAt - a.updatedAt);
-    const recent = reading.slice(0, 3);
-    continueGrid.replaceChildren();
-    continueShelf.hidden = recent.length === 0;
-
-    recent.forEach(({ book, chapterIndex, percent, hasStoredPercent }) => {
-      const card = document.createElement("article");
-      card.className = "continue-card";
-      const link = document.createElement("a");
-      link.className = "continue-card-link";
-      link.href = `reader.html?id=${encodeURIComponent(book.id)}`;
-      link.setAttribute(
-        "aria-label",
-        hasStoredPercent
-          ? `Continue reading ${book.title} by ${book.author}, ${Math.round(percent)} percent`
-          : `Continue reading ${book.title} by ${book.author}, chapter ${chapterIndex + 1}, ${Math.round(percent)} percent through the chapter`,
-      );
-
-      const cover = document.createElement("img");
-      cover.className = "continue-cover";
-      cover.src = book.cover;
-      cover.alt = "";
-      cover.loading = "lazy";
-
-      const details = document.createElement("span");
-      details.className = "continue-details";
-
-      const title = document.createElement("span");
-      title.className = "continue-title";
-      title.textContent = book.title;
-
-      const author = document.createElement("span");
-      author.className = "continue-author";
-      author.textContent = book.author;
-
-      const progressLabel = document.createElement("span");
-      progressLabel.className = "continue-progress-label";
-      progressLabel.textContent = hasStoredPercent
-        ? `${Math.round(percent)}% read`
-        : `Chapter ${chapterIndex + 1}`;
-
-      const track = document.createElement("span");
-      track.className = "continue-track";
-      track.setAttribute("role", "progressbar");
-      track.setAttribute(
-        "aria-label",
-        hasStoredPercent
-          ? `${book.title} reading progress`
-          : `${book.title} chapter ${chapterIndex + 1} progress`,
-      );
-      track.setAttribute("aria-valuemin", "0");
-      track.setAttribute("aria-valuemax", "100");
-      track.setAttribute("aria-valuenow", String(Math.round(percent)));
-
-      const fill = document.createElement("span");
-      fill.className = "continue-fill";
-      fill.style.width = `${percent}%`;
-      track.append(fill);
-      details.append(title, author, progressLabel, track);
-      link.append(cover, details);
-      card.append(link, createShareButton(book));
-      continueGrid.append(card);
-    });
-  }
-
-  function updateCompletionStates() {
-    grid.querySelectorAll(".card").forEach((card) => {
-      const cover = card.querySelector(".cover-wrap");
-      const finished = isFinishedProgress(getProgress({ id: card.dataset.id }));
-      const link = card.querySelector(".card-link");
-      let state = cover.querySelector(".card-state");
-
-      if (finished && !state) {
-        state = document.createElement("span");
-        state.className = "card-state";
-        state.textContent = "Finished";
-        cover.append(state);
-      } else if (!finished) {
-        state?.remove();
+      if (!mostRecent || progress.updatedAt > mostRecent.updatedAt) {
+        mostRecent = {
+          book,
+          chapterIndex: progress.chapterIndex,
+          updatedAt: progress.updatedAt,
+          percent,
+          hasStoredPercent,
+        };
       }
-
-      const title = card.querySelector(".card-title").textContent;
-      const author = card.querySelector(".card-author").textContent;
-      link.setAttribute(
-        "aria-label",
-        `${title} by ${author}${finished ? ", Finished; read again?" : ""}`,
-      );
-      link.title = `${title} by ${author}${finished ? ", Finished; read again?" : ""}`;
     });
+
+    continueGrid.replaceChildren();
+    continueShelf.hidden = mostRecent === null;
+
+    if (!mostRecent) return;
+    const { book, chapterIndex, percent, hasStoredPercent } = mostRecent;
+    const card = document.createElement("article");
+    card.className = "continue-card";
+    const link = document.createElement("a");
+    link.className = "continue-card-link";
+    link.href = `reader.html?id=${encodeURIComponent(book.id)}`;
+    link.setAttribute(
+      "aria-label",
+      hasStoredPercent
+        ? `Continue reading ${book.title} by ${book.author}, ${Math.round(percent)} percent`
+        : `Continue reading ${book.title} by ${book.author}, chapter ${chapterIndex + 1}, ${Math.round(percent)} percent through the chapter`,
+    );
+
+    const cover = document.createElement("img");
+    cover.className = "continue-cover";
+    cover.src = book.cover;
+    cover.alt = "";
+    cover.loading = "lazy";
+
+    const details = document.createElement("span");
+    details.className = "continue-details";
+
+    const title = document.createElement("span");
+    title.className = "continue-title";
+    title.textContent = book.title;
+
+    const author = document.createElement("span");
+    author.className = "continue-author";
+    author.textContent = book.author;
+
+    const progressLabel = document.createElement("span");
+    progressLabel.className = "continue-progress-label";
+    progressLabel.textContent = hasStoredPercent
+      ? `${Math.round(percent)}% read`
+      : `Chapter ${chapterIndex + 1}`;
+
+    const track = document.createElement("span");
+    track.className = "continue-track";
+    track.setAttribute("role", "progressbar");
+    track.setAttribute(
+      "aria-label",
+      hasStoredPercent
+        ? `${book.title} reading progress`
+        : `${book.title} chapter ${chapterIndex + 1} progress`,
+    );
+    track.setAttribute("aria-valuemin", "0");
+    track.setAttribute("aria-valuemax", "100");
+    track.setAttribute("aria-valuenow", String(Math.round(percent)));
+
+    const fill = document.createElement("span");
+    fill.className = "continue-fill";
+    fill.style.width = `${percent}%`;
+    track.append(fill);
+    details.append(title, author, progressLabel, track);
+    link.append(cover, details);
+    card.append(link, createShareButton(book));
+    continueGrid.append(card);
   }
 
   return {
     renderSkeletons,
     renderBooks,
     renderContinueReading,
-    updateCompletionStates,
   };
 }

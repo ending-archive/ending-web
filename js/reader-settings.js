@@ -28,7 +28,7 @@ function loadSettings() {
   }
 }
 
-export function createReaderSettings(el, { onEscape, onOpenNotes } = {}) {
+export function createReaderSettings(el, { onOpenNotes } = {}) {
   let settings = loadSettings();
 
   function saveSettings() {
@@ -129,7 +129,6 @@ export function createReaderSettings(el, { onEscape, onOpenNotes } = {}) {
     if (event.key === "Escape") {
       closeDrawer();
       closeNotesDrawer();
-      onEscape?.();
     }
   });
   el.backdrop.addEventListener("click", () => {

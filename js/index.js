@@ -1,7 +1,7 @@
 import { createCatalogCards } from "./index-cards.js";
-import { createReadingSummary } from "./index-reading-summary.js";
 import {
   getProgress,
+  loadFinishedBooks,
   loadFavorites,
   loadLibraryPage,
   saveFavorites,
@@ -9,7 +9,6 @@ import {
 } from "./index-storage.js";
 import {
   escapeHtml,
-  isFinishedProgress,
   isNewArrival,
   normalizeSearchText,
   sortBooksByAddedAt,
@@ -28,58 +27,41 @@ function runArchive() {
   const favRow = document.getElementById("favRow");
   const favToggle = document.getElementById("favToggle");
   const favCount = document.getElementById("favCount");
-  const finishedRow = document.getElementById("finishedRow");
   const finishedToggle = document.getElementById("finishedToggle");
   const finishedCount = document.getElementById("finishedCount");
-  const finishedHeading = document.getElementById("finishedHeading");
-  const readingStreak = document.getElementById("readingStreak");
-  const weeklyGoalSelect = document.getElementById("weeklyGoal");
-  const weeklyGoalTrack = document.getElementById("weeklyGoalTrack");
-  const weeklyGoalFill = document.getElementById("weeklyGoalFill");
-  const weeklyGoalCount = document.getElementById("weeklyGoalCount");
   const pagination = document.getElementById("pagination");
   const pageStatus = document.getElementById("pageStatus");
   const prevPageBtn = document.getElementById("prevPageBtn");
   const nextPageBtn = document.getElementById("nextPageBtn");
-  const controlsToggle = document.getElementById("controlsToggle");
-  const drawer = document.getElementById("drawer");
-  const drawerBackdrop = document.getElementById("drawerBackdrop");
-  const drawerCloseBtn = document.getElementById("drawerCloseBtn");
 
-  const SKELETON_COUNT = 10;
+  const SKELETON_COUNT = 8;
   const MIN_LOADING_MS = 300;
-  const PAGE_SIZE = 10;
+  const PAGE_SIZE = 8;
 
   let allBooks = [];
   let favorites = loadFavorites();
-  let favoritesOnly = false;
-  let finishedOnly = false;
+  let finishedBooks = loadFinishedBooks();
+  let activeFilter = "all";
   let currentPage = loadLibraryPage();
   let lastMatches = [];
   let catalogNo = new Map();
-
-  const readingSummary = createReadingSummary({
-    readingStreak,
-    weeklyGoalSelect,
-    weeklyGoalTrack,
-    weeklyGoalFill,
-    weeklyGoalCount,
-  });
-
-  function countFinishedBooks(books) {
-    return books.filter((book) => isFinishedProgress(getProgress(book))).length;
-  }
-
-  function updateFinishedCount() {
-    finishedCount.textContent = String(countFinishedBooks(allBooks));
-  }
 
   function isFavorite(id) {
     return favorites.has(String(id));
   }
 
+  function isFinished(id) {
+    return finishedBooks.has(String(id));
+  }
+
   function updateFavCount() {
     favCount.textContent = allBooks.filter((b) => isFavorite(b.id)).length;
+  }
+
+  function updateFinishedCount() {
+    finishedCount.textContent = allBooks.filter((book) =>
+      finishedBooks.has(String(book.id)),
+    ).length;
   }
 
   function toggleFavorite(id) {
@@ -92,7 +74,7 @@ function runArchive() {
     saveFavorites(favorites);
     updateFavCount();
 
-    if (favoritesOnly) {
+    if (activeFilter === "favorites") {
       applyFilter(false);
       return;
     }
@@ -116,32 +98,10 @@ function runArchive() {
     getCatalogNo: () => catalogNo,
     getProgress,
     isFavorite,
-    isFinishedProgress,
+    isFinished,
     isNewArrival,
     toggleFavorite,
     createShareButton,
-  });
-
-  // ---------- drawer (mobile) ----------
-  function openDrawer() {
-    drawer.classList.add("open");
-    drawerBackdrop.classList.add("visible");
-    controlsToggle.setAttribute("aria-expanded", "true");
-  }
-
-  function closeDrawer() {
-    drawer.classList.remove("open");
-    drawerBackdrop.classList.remove("visible");
-    controlsToggle.setAttribute("aria-expanded", "false");
-  }
-
-  controlsToggle.addEventListener("click", () => {
-    drawer.classList.contains("open") ? closeDrawer() : openDrawer();
-  });
-  drawerBackdrop.addEventListener("click", closeDrawer);
-  drawerCloseBtn.addEventListener("click", closeDrawer);
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && drawer.classList.contains("open")) closeDrawer();
   });
 
   // ---------- pagination ----------
@@ -181,7 +141,6 @@ function runArchive() {
     const start = (currentPage - 1) * PAGE_SIZE;
     cards.renderBooks(lastMatches.slice(start, start + PAGE_SIZE));
     renderPagination(lastMatches.length);
-    finishedHeading.hidden = !finishedOnly;
   }
 
   function setStatus(text, animated) {
@@ -203,15 +162,7 @@ function runArchive() {
 
     let matches = allBooks;
 
-    if (finishedOnly) {
-      matches = matches
-        .filter((book) => isFinishedProgress(getProgress(book)))
-        .sort(
-          (a, b) =>
-            (Number(getProgress(b)?.updatedAt) || 0) -
-            (Number(getProgress(a)?.updatedAt) || 0),
-        );
-    } else if (favoritesOnly) {
+    if (activeFilter === "favorites") {
       matches = matches
         .filter((b) => isFavorite(b.id))
         .sort((a, b) => {
@@ -219,6 +170,10 @@ function runArchive() {
           const timeB = favorites.get(String(b.id)) || 0;
           return timeB - timeA; // (Change to `timeA - timeB` if oldest favorited first)
         });
+    } else if (activeFilter === "finished") {
+      matches = matches.filter((book) =>
+        finishedBooks.has(String(book.id)),
+      );
     }
 
     if (queryTokens.length)
@@ -239,33 +194,32 @@ function runArchive() {
       grid.innerHTML = "";
       pagination.hidden = true;
       noResults.hidden = false;
-      if (favoritesOnly && !hasQuery) {
-        noResults.textContent =
-          "You haven't favorited any books yet — tap the heart on a book to add it.";
-      } else if (finishedOnly && !hasQuery) {
-        noResults.textContent = "You haven't finished any books yet.";
-      } else if (finishedOnly && hasQuery) {
-        noResults.innerHTML = `No finished books match "<span>${escapeHtml(searchInput.value.trim())}</span>".`;
-      } else if (favoritesOnly && hasQuery) {
+      if (activeFilter === "favorites" && !hasQuery) {
+        noResults.textContent = "You haven't favorited any books yet.";
+      } else if (activeFilter === "favorites" && hasQuery) {
         noResults.innerHTML = `None of your favorites match "<span>${escapeHtml(searchInput.value.trim())}</span>". Clear the search to see all favorites.`;
+      } else if (activeFilter === "finished" && !hasQuery) {
+        noResults.textContent = "You haven't marked any books as finished yet.";
+      } else if (activeFilter === "finished" && hasQuery) {
+        noResults.innerHTML = `No finished books match "<span>${escapeHtml(searchInput.value.trim())}</span>".`;
       } else if (hasQuery) {
         noResults.innerHTML = `No books match "<span>${escapeHtml(searchInput.value.trim())}</span>".`;
       } else {
         noResults.textContent = "No books to show.";
       }
       setStatus("0 books shown", false);
-      finishedHeading.hidden = !finishedOnly;
       return;
     }
 
     noResults.hidden = true;
     renderCurrentPage();
 
-    const noun = finishedOnly
-      ? "finished book"
-      : favoritesOnly
+    const noun =
+      activeFilter === "favorites"
         ? "favorite"
-        : "book";
+        : activeFilter === "finished"
+          ? "finished book"
+          : "book";
     const scope = hasQuery ? ` matching "${searchInput.value.trim()}"` : "";
     setStatus(
       `Showing ${matches.length} ${noun}${matches.length === 1 ? "" : "s"}${scope}`,
@@ -276,39 +230,63 @@ function runArchive() {
   searchInput.addEventListener("input", () => applyFilter(true));
 
   favToggle.addEventListener("click", () => {
-    favoritesOnly = !favoritesOnly;
-    finishedOnly = false;
-    finishedToggle.setAttribute("aria-pressed", "false");
-    favToggle.setAttribute("aria-pressed", String(favoritesOnly));
-    if (favoritesOnly && searchInput.value.trim()) {
+    activeFilter = activeFilter === "favorites" ? "all" : "favorites";
+    favToggle.setAttribute(
+      "aria-pressed",
+      String(activeFilter === "favorites"),
+    );
+    finishedToggle.setAttribute(
+      "aria-pressed",
+      String(activeFilter === "finished"),
+    );
+    if (activeFilter !== "all" && searchInput.value.trim()) {
       searchInput.value = "";
     }
     applyFilter(true);
   });
 
   finishedToggle.addEventListener("click", () => {
-    finishedOnly = !finishedOnly;
-    favoritesOnly = false;
-    finishedToggle.setAttribute("aria-pressed", String(finishedOnly));
-    favToggle.setAttribute("aria-pressed", "false");
-    if (finishedOnly && searchInput.value.trim()) searchInput.value = "";
+    activeFilter = activeFilter === "finished" ? "all" : "finished";
+    finishedToggle.setAttribute(
+      "aria-pressed",
+      String(activeFilter === "finished"),
+    );
+    favToggle.setAttribute(
+      "aria-pressed",
+      String(activeFilter === "favorites"),
+    );
+    if (activeFilter !== "all" && searchInput.value.trim()) {
+      searchInput.value = "";
+    }
     applyFilter(true);
   });
 
   function refreshFromStorage() {
-    readingSummary.refreshFromStorage();
     if (!allBooks.length) return;
-    cards.renderContinueReading(allBooks);
-    updateFinishedCount();
-    cards.updateCompletionStates();
 
     const before = JSON.stringify([...favorites]);
+    const finishedBefore = JSON.stringify([...finishedBooks]);
     favorites = loadFavorites();
+    finishedBooks = loadFinishedBooks();
+    cards.renderContinueReading(allBooks);
     updateFavCount();
-    if (JSON.stringify([...favorites]) !== before || finishedOnly) {
+    updateFinishedCount();
+    if (
+      JSON.stringify([...favorites]) !== before ||
+      JSON.stringify([...finishedBooks]) !== finishedBefore
+    ) {
       applyFilter(false);
     }
   }
+
+  window.addEventListener("storage", (event) => {
+    if (
+      event.key === "ending:favorites" ||
+      event.key === "ending:finished-books"
+    ) {
+      refreshFromStorage();
+    }
+  });
 
   window.addEventListener("pageshow", (e) => {
     if (e.persisted) refreshFromStorage();
@@ -344,7 +322,6 @@ function runArchive() {
       cards.renderContinueReading(allBooks);
       searchRow.hidden = false;
       favRow.hidden = false;
-      finishedRow.hidden = false;
       updateFavCount();
       updateFinishedCount();
       applyFilter(false);

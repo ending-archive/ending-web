@@ -185,7 +185,7 @@
       </div>
 
       <button class="reset-btn notes-open-btn" id="openNotesBtn" type="button">
-        Saved passages
+        Bookmarks
       </button>
       <button class="reset-btn" id="resetBtn">Reset to defaults</button>
     </aside>
@@ -193,11 +193,11 @@
     <aside
       class="drawer notes-drawer"
       id="notesDrawer"
-      aria-label="Bookmarks and highlights"
+      aria-label="Bookmarks"
       aria-hidden="true"
     >
       <div class="drawer-head">
-        <h2>Saved passages</h2>
+        <h2>Bookmarks</h2>
         <button
           class="drawer-close"
           id="notesCloseBtn"
@@ -219,7 +219,7 @@
       </div>
       <div class="notes-list" id="notesList"></div>
       <button class="reset-btn notes-export" id="exportNotesBtn" disabled>
-        Export as .txt
+        Export bookmarks as .txt
       </button>
     </aside>
 
@@ -228,15 +228,6 @@
         <span class="dot"></span> Opening the book…
       </div>
     </div>
-    <button
-      type="button"
-      class="highlight-selection"
-      id="highlightSelectionBtn"
-      hidden
-    >
-      Highlight
-    </button>
-
     <script type="module" src="js/reader.js"></script>
   </body>
 </html>

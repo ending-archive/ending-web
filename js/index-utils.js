@@ -36,14 +36,6 @@ export function isNewArrival(book, now = Date.now()) {
   return age >= 0 && age < 7 * 24 * 60 * 60 * 1000;
 }
 
-export function isFinishedProgress(progress) {
-  return (
-    progress?.finished === true ||
-    (Number.isFinite(Number(progress?.progressPercent)) &&
-      Number(progress.progressPercent) >= 99)
-  );
-}
-
 export function sortBooksByAddedAt(books) {
   return books
     .map((book, index) => ({
