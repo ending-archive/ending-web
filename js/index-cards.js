@@ -1,5 +1,18 @@
 import { escapeHtml } from "./index-utils.js";
 
+// Swap a missing or broken cover for a text placeholder.
+function useCoverFallback(img, title) {
+  const swap = () => {
+    const fallback = document.createElement("div");
+    fallback.className = "cover-fallback";
+    fallback.setAttribute("aria-hidden", "true");
+    fallback.textContent = title;
+    img.replaceWith(fallback);
+  };
+  if (!img.getAttribute("src")) swap();
+  else img.addEventListener("error", swap, { once: true });
+}
+
 export function createCatalogCards({
   grid,
   continueShelf,
@@ -44,10 +57,7 @@ export function createCatalogCards({
       card.style.animationDelay = `${Math.min(index * 40, 400)}ms`;
       const cardLink = document.createElement("a");
       cardLink.href = `reader.html?id=${encodeURIComponent(book.id)}`;
-      cardLink.setAttribute(
-        "aria-label",
-        `${book.title} by ${book.author}`,
-      );
+      cardLink.setAttribute("aria-label", `${book.title} by ${book.author}`);
       card.title = `${book.title} by ${book.author}`;
       cardLink.className = "card-link";
       cardLink.innerHTML = `
@@ -64,6 +74,8 @@ export function createCatalogCards({
           ${isNewArrival(book) ? '<span class="arrival-badge">New</span>' : ""}
         </div>
       `;
+      useCoverFallback(cardLink.querySelector("img"), book.title);
+
       const favoriteButton = document.createElement("button");
       favoriteButton.type = "button";
       favoriteButton.className = `fav-btn${active ? " active" : ""}`;
@@ -108,12 +120,16 @@ export function createCatalogCards({
       const storedPercent = Number(progress.progressPercent);
       const legacyFraction = Number(progress.scrollFraction);
       const hasStoredPercent =
+        progress.progressPercent !== null &&
         Number.isFinite(storedPercent) &&
         storedPercent >= 0 &&
         storedPercent <= 100;
-      const percent = hasStoredPercent
-        ? storedPercent
-        : Math.min(100, Math.max(0, legacyFraction * 100));
+      const percent = Math.min(
+        99,
+        hasStoredPercent
+          ? storedPercent
+          : Math.max(0, legacyFraction * 100),
+      );
       if (!Number.isFinite(percent)) return;
       if (percent < 1) return;
 
@@ -147,9 +163,16 @@ export function createCatalogCards({
 
     const cover = document.createElement("img");
     cover.className = "continue-cover";
-    cover.src = book.cover;
     cover.alt = "";
     cover.loading = "lazy";
+    if (book.cover) {
+      cover.src = book.cover;
+      cover.addEventListener("error", () => (cover.hidden = true), {
+        once: true,
+      });
+    } else {
+      cover.hidden = true;
+    }
 
     const details = document.createElement("span");
     details.className = "continue-details";

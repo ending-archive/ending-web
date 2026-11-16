@@ -13,25 +13,40 @@ export function saveProgress(id, data) {
   } catch {}
 }
 
+// Scroll position as 0..1. Used for bookmarks and scroll restore.
+// Returns 0 when the page doesn't scroll.
 export function scrollFraction() {
   const max = document.documentElement.scrollHeight - window.innerHeight;
   if (max <= 0) return 0;
   return Math.min(1, Math.max(0, window.scrollY / max));
 }
 
+// Reading progress as 0..1. A chapter that fits on one screen is fully
+// visible, so it counts as fully read.
+export function progressFraction() {
+  const max = document.documentElement.scrollHeight - window.innerHeight;
+  if (max <= 0) return 1;
+  return Math.min(1, Math.max(0, window.scrollY / max));
+}
+
 export function buildChapterSpans(chapters) {
-  const total = chapters.reduce((length, chapter) => length + chapter.text.length, 0) || 1;
+  const total =
+    chapters.reduce((length, chapter) => length + chapter.text.length, 0) || 1;
   let accumulated = 0;
   return chapters.map((chapter) => {
-    const span = { start: accumulated / total, span: chapter.text.length / total };
+    const span = {
+      start: accumulated / total,
+      span: chapter.text.length / total,
+    };
     accumulated += chapter.text.length;
     return span;
   });
 }
 
-export function overallPercent(chapterSpans, chapterIndex) {
+export function overallPercent(chapterSpans, chapterIndex, finished = false) {
+  if (finished) return 100;
   const { start, span } = chapterSpans[chapterIndex];
-  return Math.min(100, Math.max(0, (start + span * scrollFraction()) * 100));
+  return Math.min(99, Math.max(0, (start + span * progressFraction()) * 100));
 }
 
 export function topbarHeight() {

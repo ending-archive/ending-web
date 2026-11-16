@@ -1,16 +1,4 @@
-export function escapeHtml(str) {
-  return String(str).replace(
-    /[&<>"']/g,
-    (ch) =>
-      ({
-        "&": "&amp;",
-        "<": "&lt;",
-        ">": "&gt;",
-        '"': "&quot;",
-        "'": "&#39;",
-      })[ch],
-  );
-}
+export { escapeHtml } from "./shared.js";
 
 export function normalizeSearchText(text) {
   const normalized = String(text)
@@ -51,4 +39,43 @@ export function sortBooksByAddedAt(books) {
       return b.addedAt - a.addedAt || a.index - b.index;
     })
     .map(({ book }) => book);
+}
+
+// Drops malformed or duplicate entries so one bad record can't break the page.
+export function validateBooks(raw) {
+  const books = [];
+  const problems = [];
+  const seen = new Set();
+
+  raw.forEach((entry, i) => {
+    const where = `books.json[${i}]`;
+    if (!entry || typeof entry !== "object") {
+      problems.push(`${where}: not an object`);
+      return;
+    }
+    const id = typeof entry.id === "string" ? entry.id : "";
+    if (!/^[\w-]{1,100}$/.test(id)) {
+      problems.push(`${where}: missing or invalid id`);
+      return;
+    }
+    if (seen.has(id)) {
+      problems.push(`${where}: duplicate id "${id}"`);
+      return;
+    }
+    if (typeof entry.title !== "string" || !entry.title.trim()) {
+      problems.push(`${where} (${id}): missing title`);
+      return;
+    }
+    seen.add(id);
+    books.push({
+      ...entry,
+      author:
+        typeof entry.author === "string" && entry.author.trim()
+          ? entry.author
+          : "Unknown author",
+      cover: typeof entry.cover === "string" ? entry.cover : "",
+    });
+  });
+
+  return { books, problems };
 }

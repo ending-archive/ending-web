@@ -37,6 +37,8 @@ export function getProgress(book) {
   }
 }
 
+// Stored as [[id, timestamp], ...] so insertion order is always preserved.
+// Also reads the two legacy formats: an array of ids, and an {id: timestamp} object.
 export function loadFavorites() {
   try {
     const raw = localStorage.getItem(FAVORITES_KEY);
@@ -44,9 +46,20 @@ export function loadFavorites() {
     const parsed = JSON.parse(raw);
 
     if (Array.isArray(parsed)) {
-      return new Map(parsed.map((id, index) => [String(id), index]));
+      return new Map(
+        parsed.map((item, index) =>
+          Array.isArray(item)
+            ? [String(item[0]), Number(item[1]) || index]
+            : [String(item), index],
+        ),
+      );
     }
-    return new Map(Object.entries(parsed));
+    if (parsed && typeof parsed === "object") {
+      return new Map(
+        Object.entries(parsed).map(([id, time]) => [id, Number(time) || 0]),
+      );
+    }
+    return new Map();
   } catch {
     return new Map();
   }
@@ -54,7 +67,7 @@ export function loadFavorites() {
 
 export function saveFavorites(favorites) {
   try {
-    localStorage.setItem(FAVORITES_KEY, JSON.stringify(Object.fromEntries(favorites)));
+    localStorage.setItem(FAVORITES_KEY, JSON.stringify([...favorites]));
   } catch {}
 }
 

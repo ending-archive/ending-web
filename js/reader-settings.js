@@ -1,31 +1,36 @@
 const SETTINGS_KEY = "ending:settings";
-const DEFAULT_SETTINGS = {
-  font: "serif",
-  size: 17,
-  align: "left",
-  theme: "paper",
-};
 const SIZE_MIN = 14;
 const SIZE_MAX = 26;
 const SIZE_STEP = 1;
+const THEME_CLASSES = ["theme-paper", "theme-sepia", "theme-dark"];
+
+function defaultSettings() {
+  const prefersDark =
+    typeof matchMedia === "function" &&
+    matchMedia("(prefers-color-scheme: dark)").matches;
+  return {
+    font: "serif",
+    size: 17,
+    align: "left",
+    theme: prefersDark ? "dark" : "paper",
+  };
+}
 
 function loadSettings() {
+  const settings = defaultSettings();
   try {
-    const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
-    const settings = { ...DEFAULT_SETTINGS };
+    const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}") || {};
     if (["serif", "sans", "mono"].includes(saved.font))
       settings.font = saved.font;
     if (["left", "justify"].includes(saved.align))
       settings.align = saved.align;
     if (["paper", "sepia", "dark"].includes(saved.theme))
       settings.theme = saved.theme;
-    const size = Number(saved.size);
-    if (Number.isFinite(size))
-      settings.size = Math.min(SIZE_MAX, Math.max(SIZE_MIN, size));
-    return settings;
-  } catch {
-    return { ...DEFAULT_SETTINGS };
-  }
+    // typeof check: Number(null) is 0, which would clamp to the minimum size.
+    if (typeof saved.size === "number" && Number.isFinite(saved.size))
+      settings.size = Math.min(SIZE_MAX, Math.max(SIZE_MIN, saved.size));
+  } catch {}
+  return settings;
 }
 
 export function createReaderSettings(
@@ -33,6 +38,7 @@ export function createReaderSettings(
   { onOpenNotes, onBeforeChange, onAfterChange } = {},
 ) {
   let settings = loadSettings();
+  let returnFocusTo = null;
 
   function saveSettings() {
     try {
@@ -41,7 +47,8 @@ export function createReaderSettings(
   }
 
   function applySettings() {
-    document.body.className = "theme-" + settings.theme;
+    document.body.classList.remove(...THEME_CLASSES);
+    document.body.classList.add("theme-" + settings.theme);
     document.documentElement.style.setProperty(
       "--font-size",
       settings.size + "px",
@@ -56,10 +63,9 @@ export function createReaderSettings(
 
     [el.fontRow, el.alignRow, el.themeRow].forEach((row) => {
       row.querySelectorAll(".opt-btn").forEach((button) => {
-        button.classList.toggle(
-          "active",
-          button.dataset.value === settings[row.dataset.key],
-        );
+        const on = button.dataset.value === settings[row.dataset.key];
+        button.classList.toggle("active", on);
+        button.setAttribute("aria-pressed", String(on));
       });
     });
     el.sizeValue.textContent = settings.size;
@@ -93,59 +99,98 @@ export function createReaderSettings(
   });
   el.resetBtn.addEventListener("click", () => {
     const token = onBeforeChange?.();
-    settings = { ...DEFAULT_SETTINGS };
+    settings = defaultSettings();
     saveSettings();
     applySettings();
     onAfterChange?.(token);
   });
 
-  function openDrawer() {
-    el.drawer.classList.add("open");
-    el.backdrop.classList.add("visible");
-    el.settingsBtn.classList.add("open");
-    el.settingsBtn.setAttribute("aria-expanded", "true");
+  // ---- drawers: aria-hidden/inert + focus management ----
+  function setDrawerOpen(drawer, open) {
+    drawer.classList.toggle("open", open);
+    drawer.setAttribute("aria-hidden", String(!open));
+    drawer.inert = !open;
   }
 
-  function closeDrawer() {
-    el.drawer.classList.remove("open");
-    el.backdrop.classList.remove("visible");
+  function isOpen(drawer) {
+    return drawer.classList.contains("open");
+  }
+
+  function syncBackdrop() {
+    el.backdrop.classList.toggle(
+      "visible",
+      isOpen(el.drawer) || isOpen(el.notesDrawer),
+    );
+  }
+
+  function restoreFocus() {
+    if (isOpen(el.drawer) || isOpen(el.notesDrawer)) return;
+    const target = returnFocusTo;
+    returnFocusTo = null;
+    if (target && document.contains(target)) target.focus();
+  }
+
+  function rememberFocus() {
+    if (!isOpen(el.drawer) && !isOpen(el.notesDrawer))
+      returnFocusTo = document.activeElement;
+  }
+
+  function openDrawer() {
+    rememberFocus();
+    setDrawerOpen(el.notesDrawer, false);
+    setDrawerOpen(el.drawer, true);
+    el.settingsBtn.classList.add("open");
+    el.settingsBtn.setAttribute("aria-expanded", "true");
+    syncBackdrop();
+    el.drawerCloseBtn.focus();
+  }
+
+  function closeDrawer({ restore = true } = {}) {
+    setDrawerOpen(el.drawer, false);
     el.settingsBtn.classList.remove("open");
     el.settingsBtn.setAttribute("aria-expanded", "false");
+    syncBackdrop();
+    if (restore) restoreFocus();
   }
 
   function openNotesDrawer() {
-    closeDrawer();
+    rememberFocus();
+    closeDrawer({ restore: false });
     onOpenNotes?.();
-    el.notesDrawer.classList.add("open");
-    el.notesDrawer.setAttribute("aria-hidden", "false");
-    el.backdrop.classList.add("visible");
+    setDrawerOpen(el.notesDrawer, true);
+    syncBackdrop();
+    el.notesCloseBtn.focus();
   }
 
-  function closeNotesDrawer() {
-    el.notesDrawer.classList.remove("open");
-    el.notesDrawer.setAttribute("aria-hidden", "true");
-    if (!el.drawer.classList.contains("open"))
-      el.backdrop.classList.remove("visible");
+  function closeNotesDrawer({ restore = true } = {}) {
+    setDrawerOpen(el.notesDrawer, false);
+    syncBackdrop();
+    if (restore) restoreFocus();
   }
 
   el.settingsBtn.addEventListener("click", () => {
-    closeNotesDrawer();
-    el.drawer.classList.contains("open") ? closeDrawer() : openDrawer();
+    if (isOpen(el.drawer)) {
+      closeDrawer();
+    } else {
+      openDrawer();
+    }
   });
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") {
-      closeDrawer();
+    if (event.key === "Escape" && (isOpen(el.drawer) || isOpen(el.notesDrawer))) {
+      closeDrawer({ restore: false });
       closeNotesDrawer();
     }
   });
   el.backdrop.addEventListener("click", () => {
-    closeDrawer();
+    closeDrawer({ restore: false });
     closeNotesDrawer();
   });
-  el.drawerCloseBtn.addEventListener("click", closeDrawer);
-  el.notesCloseBtn.addEventListener("click", closeNotesDrawer);
+  el.drawerCloseBtn.addEventListener("click", () => closeDrawer());
+  el.notesCloseBtn.addEventListener("click", () => closeNotesDrawer());
   el.openNotesBtn.addEventListener("click", openNotesDrawer);
 
+  setDrawerOpen(el.drawer, false);
+  setDrawerOpen(el.notesDrawer, false);
   applySettings();
   return {
     applySettings,
@@ -153,6 +198,7 @@ export function createReaderSettings(
     closeDrawer,
     openNotesDrawer,
     closeNotesDrawer,
+    isAnyDrawerOpen: () => isOpen(el.drawer) || isOpen(el.notesDrawer),
     get settings() {
       return settings;
     },

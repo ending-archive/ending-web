@@ -1,27 +1,27 @@
 @font-face {
   font-family: "Fraunces";
-  src: url("../fonts/fraunces.woff2");
+  src: url("../fonts/fraunces.woff2") format("woff2");
   font-weight: 300 700;
   font-display: swap;
 }
 
 @font-face {
   font-family: "Work Sans";
-  src: url("../fonts/worksans.woff2");
+  src: url("../fonts/worksans.woff2") format("woff2");
   font-weight: 380 550;
   font-display: swap;
 }
 
 @font-face {
   font-family: "Space Mono";
-  src: url("../fonts/spacemono.woff2");
+  src: url("../fonts/spacemono.woff2") format("woff2");
   font-weight: 380 550;
   font-display: swap;
 }
 
 @font-face {
   font-family: "Literata";
-  src: url("../fonts/literata.woff2");
+  src: url("../fonts/literata.woff2") format("woff2");
   font-weight: 380 550;
   font-display: swap;
 }
@@ -138,6 +138,11 @@ body.theme-dark {
   text-decoration: underline;
 }
 
+.back-link:focus-visible {
+  outline: 2px solid var(--brass-bright);
+  outline-offset: 2px;
+}
+
 .topbar-title {
   flex: 1;
   min-width: 0;
@@ -200,7 +205,9 @@ body.theme-dark {
 .share-btn:focus-visible,
 .settings-btn:focus-visible,
 .nav-btn:focus-visible,
-.chapter-select:focus-visible {
+.chapter-select:focus-visible,
+.opt-btn:focus-visible,
+.reset-btn:focus-visible {
   outline: 2px solid var(--brass-bright);
   outline-offset: 2px;
 }
@@ -209,10 +216,11 @@ body.theme-dark {
   transform: rotate(35deg);
 }
 
-.share-toast {
+/* Sits above the fixed prev/next bar (about 3.75rem tall) so it never covers it. */
+.toast {
   position: fixed;
   left: 50%;
-  bottom: max(1rem, env(safe-area-inset-bottom));
+  bottom: calc(4.75rem + env(safe-area-inset-bottom, 0px));
   z-index: 40;
   width: max-content;
   max-width: calc(100vw - 2rem);
@@ -229,7 +237,7 @@ body.theme-dark {
   overflow-wrap: anywhere;
 }
 
-.share-toast[hidden] {
+.toast[hidden] {
   display: none;
 }
 
@@ -460,7 +468,8 @@ body.theme-dark {
   background: rgba(184, 146, 63, 0.1);
 }
 
-.opt-btn.active {
+.opt-btn.active,
+.opt-btn[aria-pressed="true"] {
   background: var(--brass);
   border-color: var(--brass);
   color: var(--ink);
@@ -563,6 +572,12 @@ body.theme-dark {
   margin: 0 0 1.3em;
 }
 
+/* Line-broken verse: never hyphenate or justify, which mangles the line breaks. */
+.chapter-body p.verse {
+  hyphens: manual;
+  text-align: left;
+}
+
 .completion-panel {
   margin-top: 1.75rem;
   padding: clamp(1.25rem, 5vw, 2rem);
@@ -641,6 +656,10 @@ body.theme-dark {
   border-radius: 3px;
   object-fit: cover;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.suggestion-cover[hidden] {
+  display: none;
 }
 
 .suggestion-details {

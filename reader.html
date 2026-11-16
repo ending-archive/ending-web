@@ -9,6 +9,14 @@
       name="description"
       content="Read stories from the 3NDING archive online."
     />
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="3NDING" />
+    <meta property="og:title" content="3NDING | Reader" />
+    <meta
+      property="og:description"
+      content="Read stories from the 3NDING archive online."
+    />
+    <meta name="twitter:card" content="summary" />
     <link rel="stylesheet" href="css/reader.css" />
 
     <link
@@ -26,16 +34,30 @@
 
   <body class="theme-paper">
     <script>
+      // Applies saved reading settings before first paint to avoid a flash.
+      // Keep the rules in sync with js/reader-settings.js.
       try {
-        const s = JSON.parse(localStorage.getItem("ending:settings") || "{}");
-        if (["paper", "sepia", "dark"].includes(s.theme))
-          document.body.className = "theme-" + s.theme;
+        const s =
+          JSON.parse(localStorage.getItem("ending:settings") || "{}") || {};
+        const prefersDark =
+          typeof matchMedia === "function" &&
+          matchMedia("(prefers-color-scheme: dark)").matches;
+        const theme = ["paper", "sepia", "dark"].includes(s.theme)
+          ? s.theme
+          : prefersDark
+            ? "dark"
+            : "paper";
+        document.body.classList.remove(
+          "theme-paper",
+          "theme-sepia",
+          "theme-dark",
+        );
+        document.body.classList.add("theme-" + theme);
         const root = document.documentElement.style;
-        const size = Number(s.size);
-        if (Number.isFinite(size))
+        if (typeof s.size === "number" && Number.isFinite(s.size))
           root.setProperty(
             "--font-size",
-            Math.min(26, Math.max(14, size)) + "px",
+            Math.min(26, Math.max(14, s.size)) + "px",
           );
         if (s.align === "justify") root.setProperty("--text-align", "justify");
       } catch {}
@@ -75,7 +97,7 @@
           class="share-btn bookmark-btn"
           id="bookmarkBtn"
           aria-label="Bookmark this spot"
-          title="Bookmark this spot"
+          title="Bookmark this spot (B)"
           disabled
         >
           <svg
@@ -91,11 +113,13 @@
           </svg>
         </button>
         <button
+          type="button"
           class="settings-btn"
           id="settingsBtn"
           aria-label="Reading settings"
           title="Reader settings"
           aria-expanded="false"
+          aria-controls="drawer"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -108,6 +132,7 @@
             stroke-linecap="round"
             stroke-linejoin="round"
             class="lucide lucide-settings preview-icon"
+            aria-hidden="true"
           >
             <path
               d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"
@@ -118,7 +143,7 @@
       </div>
     </div>
     <div
-      class="share-toast"
+      class="toast"
       id="shareStatus"
       role="status"
       aria-live="polite"
@@ -126,10 +151,17 @@
     ></div>
 
     <div class="drawer-backdrop" id="drawerBackdrop"></div>
-    <aside class="drawer" id="drawer" aria-label="Reading settings">
+    <aside
+      class="drawer"
+      id="drawer"
+      aria-label="Reading settings"
+      aria-hidden="true"
+      inert
+    >
       <div class="drawer-head">
         <h2>Reading settings</h2>
         <button
+          type="button"
           class="drawer-close"
           id="drawerCloseBtn"
           aria-label="Close settings"
@@ -146,6 +178,7 @@
             stroke-linecap="round"
             stroke-linejoin="round"
             class="lucide lucide-x preview-icon"
+            aria-hidden="true"
           >
             <path d="M18 6 6 18" />
             <path d="m6 6 12 12" />
@@ -156,20 +189,51 @@
       <div class="setting-group">
         <span class="setting-label">Font</span>
         <div class="option-row" id="fontRow" data-key="font">
-          <button class="opt-btn" data-value="serif">Serif</button>
-          <button class="opt-btn" data-value="sans">Sans</button>
-          <button class="opt-btn" data-value="mono">Mono</button>
+          <button
+            type="button"
+            class="opt-btn"
+            data-value="serif"
+            aria-pressed="false"
+          >
+            Serif
+          </button>
+          <button
+            type="button"
+            class="opt-btn"
+            data-value="sans"
+            aria-pressed="false"
+          >
+            Sans
+          </button>
+          <button
+            type="button"
+            class="opt-btn"
+            data-value="mono"
+            aria-pressed="false"
+          >
+            Mono
+          </button>
         </div>
       </div>
 
       <div class="setting-group">
         <span class="setting-label">Text size</span>
         <div class="size-row">
-          <button class="opt-btn" id="sizeDown" aria-label="Decrease text size">
+          <button
+            type="button"
+            class="opt-btn"
+            id="sizeDown"
+            aria-label="Decrease text size"
+          >
             A-
           </button>
-          <span class="size-value" id="sizeValue">17</span>
-          <button class="opt-btn" id="sizeUp" aria-label="Increase text size">
+          <span class="size-value" id="sizeValue" aria-live="polite">17</span>
+          <button
+            type="button"
+            class="opt-btn"
+            id="sizeUp"
+            aria-label="Increase text size"
+          >
             A+
           </button>
         </div>
@@ -178,24 +242,61 @@
       <div class="setting-group">
         <span class="setting-label">Alignment</span>
         <div class="option-row" id="alignRow" data-key="align">
-          <button class="opt-btn" data-value="left">Left</button>
-          <button class="opt-btn" data-value="justify">Justify</button>
+          <button
+            type="button"
+            class="opt-btn"
+            data-value="left"
+            aria-pressed="false"
+          >
+            Left
+          </button>
+          <button
+            type="button"
+            class="opt-btn"
+            data-value="justify"
+            aria-pressed="false"
+          >
+            Justify
+          </button>
         </div>
       </div>
 
       <div class="setting-group">
         <span class="setting-label">Theme</span>
         <div class="option-row" id="themeRow" data-key="theme">
-          <button class="opt-btn" data-value="paper">Paper</button>
-          <button class="opt-btn" data-value="sepia">Sepia</button>
-          <button class="opt-btn" data-value="dark">Dark</button>
+          <button
+            type="button"
+            class="opt-btn"
+            data-value="paper"
+            aria-pressed="false"
+          >
+            Paper
+          </button>
+          <button
+            type="button"
+            class="opt-btn"
+            data-value="sepia"
+            aria-pressed="false"
+          >
+            Sepia
+          </button>
+          <button
+            type="button"
+            class="opt-btn"
+            data-value="dark"
+            aria-pressed="false"
+          >
+            Dark
+          </button>
         </div>
       </div>
 
       <button class="reset-btn notes-open-btn" id="openNotesBtn" type="button">
         Bookmarks
       </button>
-      <button class="reset-btn" id="resetBtn">Reset to defaults</button>
+      <button class="reset-btn" id="resetBtn" type="button">
+        Reset to defaults
+      </button>
     </aside>
 
     <aside
@@ -203,13 +304,15 @@
       id="notesDrawer"
       aria-label="Bookmarks"
       aria-hidden="true"
+      inert
     >
       <div class="drawer-head">
         <h2>Bookmarks</h2>
         <button
+          type="button"
           class="drawer-close"
           id="notesCloseBtn"
-          aria-label="Close saved passages"
+          aria-label="Close bookmarks"
         >
           <svg
             aria-hidden="true"
@@ -226,12 +329,22 @@
         </button>
       </div>
       <div class="notes-list" id="notesList"></div>
-      <button class="reset-btn notes-export" id="exportNotesBtn" disabled>
+      <button
+        type="button"
+        class="reset-btn notes-export"
+        id="exportNotesBtn"
+        disabled
+      >
         Export bookmarks as .txt
       </button>
     </aside>
 
     <div class="reader-surface" id="readerSurface">
+      <noscript>
+        <div class="state-box">
+          3NDING needs JavaScript to open books. Please enable it and reload.
+        </div>
+      </noscript>
       <div class="state-box" id="stateBox">
         <span class="dot"></span> Opening the book…
       </div>

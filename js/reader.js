@@ -54,6 +54,7 @@ function runReader() {
   let chapterIndex = 0;
   let saveTimer = null;
   let loadSeq = 0;
+  let suggestedId = null; // cached so the "next read" doesn't reshuffle on re-render
 
   let dirty = false;
   let suppressScrollEvents = false;
@@ -82,8 +83,9 @@ function runReader() {
     if (typeof key === "string" && key) {
       const exact = chapters.findIndex((chapter) => chapter.key === key);
       if (exact >= 0) return exact;
-      const slug = key.slice(0, key.lastIndexOf("."));
-      if (slug) {
+      const dot = key.lastIndexOf(".");
+      if (dot > 0) {
+        const slug = key.slice(0, dot);
         const bySlug = chapters.findIndex((chapter) =>
           chapter.key.startsWith(slug + "."),
         );
@@ -117,6 +119,37 @@ function runReader() {
     return typeof value === "string" && /^[\w-]{1,100}$/.test(value);
   }
 
+  // Rebuilds each bookmark from validated fields only; nothing stored is trusted.
+  function sanitizeBookmark(item) {
+    if (
+      !item ||
+      !validAnnotationId(item.id) ||
+      !Number.isInteger(item.chapterIndex) ||
+      item.chapterIndex < 0 ||
+      !Number.isFinite(item.fraction) ||
+      item.fraction < 0 ||
+      item.fraction > 1
+    ) {
+      return null;
+    }
+    return {
+      id: item.id,
+      chapterIndex: item.chapterIndex,
+      chapterKey:
+        typeof item.chapterKey === "string"
+          ? item.chapterKey.slice(0, 200)
+          : undefined,
+      fraction: item.fraction,
+      paragraph: Number.isInteger(item.paragraph) ? item.paragraph : null,
+      offset:
+        Number.isFinite(item.offset) && item.offset >= 0 && item.offset <= 1
+          ? item.offset
+          : 0,
+      excerpt: typeof item.excerpt === "string" ? item.excerpt.slice(0, 120) : "",
+      createdAt: Number.isFinite(item.createdAt) ? item.createdAt : 0,
+    };
+  }
+
   function loadAnnotations() {
     try {
       const raw = localStorage.getItem(annotationKey(bookId));
@@ -125,22 +158,13 @@ function runReader() {
         return { bookmarks: [] };
       const bookmarks = Array.isArray(saved.bookmarks)
         ? saved.bookmarks
-            .filter(
-              (item) =>
-                item &&
-                validAnnotationId(item.id) &&
-                Number.isInteger(item.chapterIndex) &&
-                item.chapterIndex >= 0 &&
-                
-                Number.isFinite(item.fraction) &&
-                item.fraction >= 0 &&
-                item.fraction <= 1,
-            )
+            .map(sanitizeBookmark)
+            .filter(Boolean)
             .slice(0, MAX_ANNOTATIONS)
         : [];
       return { bookmarks };
     } catch {
-      showShareToast("Bookmarks couldn't be read from this device.");
+      showToast("Bookmarks couldn't be read from this device.");
       return { bookmarks: [] };
     }
   }
@@ -149,7 +173,7 @@ function runReader() {
     try {
       localStorage.setItem(annotationKey(bookId), JSON.stringify(next));
     } catch {
-      showShareToast("Bookmarks couldn't be stored on this device.");
+      showToast("Bookmarks couldn't be stored on this device.");
       return false;
     }
     annotations = next;
@@ -179,8 +203,8 @@ function runReader() {
           <div class="saved-item-label">${escapeHtml(title)} · ${Math.round(item.fraction * 100)}%</div>
           ${excerpt}
           <div class="saved-item-actions">
-            <button type="button" class="saved-action" data-action="jump-bookmark" data-id="${item.id}" ${available ? "" : "disabled"}>Go to</button>
-            <button type="button" class="saved-action" data-action="delete-bookmark" data-id="${item.id}" aria-label="Remove bookmark">Remove</button>
+            <button type="button" class="saved-action" data-action="jump-bookmark" data-id="${escapeHtml(item.id)}" ${available ? "" : "disabled"}>Go to</button>
+            <button type="button" class="saved-action" data-action="delete-bookmark" data-id="${escapeHtml(item.id)}" aria-label="Remove bookmark">Remove</button>
           </div>
         </article>`;
       })
@@ -214,17 +238,23 @@ function runReader() {
         bookmark.chapterIndex,
       );
       if (targetIndex < 0) {
-        showShareToast("That chapter is no longer in this book.");
+        showToast("That chapter is no longer in this book.");
         return;
       }
       loadChapter(targetIndex, false, false);
+      setHash(false);
+      const seq = loadSeq;
       fontsReady().then(() => {
+        if (seq !== loadSeq) return; // user moved to another chapter meanwhile
         requestAnimationFrame(() =>
           requestAnimationFrame(() => {
+            if (seq !== loadSeq) return;
             const max =
               document.documentElement.scrollHeight - window.innerHeight;
             suppressScrollEvents = true;
-            if (!(Number.isInteger(bookmark.paragraph) && scrollToAnchor(bookmark))) {
+            if (
+              !(Number.isInteger(bookmark.paragraph) && scrollToAnchor(bookmark))
+            ) {
               window.scrollTo({
                 top: Math.max(0, max) * bookmark.fraction,
                 left: 0,
@@ -238,7 +268,6 @@ function runReader() {
           }),
         );
       });
-      return;
     }
   });
 
@@ -262,18 +291,18 @@ function runReader() {
         new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" }),
         `${safeId}-bookmarks.txt`,
       );
-      showShareToast("Bookmarks exported as a text file.");
+      showToast("Bookmarks exported as a text file.");
     } catch {
-      showShareToast("Unable to export bookmarks.");
+      showToast("Unable to export bookmarks.");
     }
   });
 
-  let shareToastTimer;
-  function showShareToast(message) {
+  let toastTimer;
+  function showToast(message) {
     el.shareStatus.textContent = message;
     el.shareStatus.hidden = false;
-    clearTimeout(shareToastTimer);
-    shareToastTimer = setTimeout(() => {
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
       el.shareStatus.hidden = true;
     }, 3500);
   }
@@ -282,20 +311,25 @@ function runReader() {
     bookId,
     getBookMeta: () => bookMeta,
     el,
-    showToast: showShareToast,
+    showToast: showToast,
   });
 
   // ---------- progress persistence ----------
   let chapterSpans = [];
 
   function updateProgressUI() {
-    const pct = overallPercent(chapterSpans, chapterIndex);
+    if (!chapterSpans.length) return;
+    const pct = overallPercent(
+      chapterSpans,
+      chapterIndex,
+      finishedBooks.has(String(bookId)),
+    );
     el.progressFill.style.width = pct + "%";
     el.progressPct.textContent = Math.round(pct) + "%";
   }
 
-  function persistProgress() {
-    if (!dirty || !bookId || !chapterSpans.length) return;
+  function persistProgress(force = false) {
+    if ((!dirty && !force) || !bookId || !chapterSpans.length) return;
     const anchor = currentAnchor();
     saveProgress(bookId, {
       chapterIndex,
@@ -303,7 +337,11 @@ function runReader() {
       paragraph: anchor ? anchor.paragraph : null,
       offset: anchor ? anchor.offset : 0,
       scrollFraction: scrollFraction(),
-      progressPercent: overallPercent(chapterSpans, chapterIndex),
+      progressPercent: overallPercent(
+        chapterSpans,
+        chapterIndex,
+        finishedBooks.has(String(bookId)),
+      ),
       updatedAt: Date.now(),
     });
   }
@@ -330,8 +368,9 @@ function runReader() {
   }
 
   function addBookmark() {
+    if (!chapters.length) return;
     if (annotations.bookmarks.length >= MAX_ANNOTATIONS) {
-      showShareToast("You’ve reached the bookmark limit for this book.");
+      showToast("You’ve reached the bookmark limit for this book.");
       return;
     }
     const fraction = scrollFraction();
@@ -342,7 +381,7 @@ function runReader() {
         Math.abs(item.fraction - fraction) < 0.012,
     );
     if (existing) {
-      showShareToast("There’s already a bookmark near this spot.");
+      showToast("There’s already a bookmark near this spot.");
       return;
     }
     if (
@@ -363,7 +402,7 @@ function runReader() {
         ],
       })
     ) {
-      showShareToast("Bookmark saved.");
+      showToast("Bookmark saved.");
     }
   }
   el.bookmarkBtn.addEventListener("click", addBookmark);
@@ -388,10 +427,12 @@ function runReader() {
         const latest = loadFinishedBooks();
         latest.delete(String(bookId));
         if (!saveFinishedBooks(latest)) {
-          showShareToast("This change couldn't be saved on this device.");
+          showToast("This change couldn't be saved on this device.");
           return;
         }
         finishedBooks = latest;
+        updateProgressUI();
+        persistProgress(true);
         renderCompletionPanel();
       });
       panel.append(undoButton);
@@ -406,10 +447,14 @@ function runReader() {
         const latestFinishedBooks = loadFinishedBooks();
         latestFinishedBooks.add(String(bookId));
         if (!saveFinishedBooks(latestFinishedBooks)) {
-          showShareToast("This book couldn't be marked as finished on this device.");
+          showToast(
+            "This book couldn't be marked as finished on this device.",
+          );
           return;
         }
         finishedBooks = latestFinishedBooks;
+        updateProgressUI();
+        persistProgress(true);
         renderCompletionPanel();
       });
       panel.append(finishButton);
@@ -432,7 +477,12 @@ function runReader() {
       return;
     }
 
-    const suggestion = nextBook[Math.floor(Math.random() * nextBook.length)];
+    // Keep the same suggestion across re-renders unless it's no longer valid.
+    let suggestion = nextBook.find((book) => book.id === suggestedId);
+    if (!suggestion) {
+      suggestion = nextBook[Math.floor(Math.random() * nextBook.length)];
+      suggestedId = suggestion.id;
+    }
     message.textContent = "Your next read";
     message.className = "completion-kicker";
     const link = document.createElement("a");
@@ -445,9 +495,16 @@ function runReader() {
 
     const cover = document.createElement("img");
     cover.className = "suggestion-cover";
-    cover.src = suggestion.cover;
     cover.alt = "";
     cover.loading = "lazy";
+    if (suggestion.cover) {
+      cover.src = suggestion.cover;
+      cover.addEventListener("error", () => (cover.hidden = true), {
+        once: true,
+      });
+    } else {
+      cover.hidden = true;
+    }
 
     const details = document.createElement("span");
     details.className = "suggestion-details";
@@ -485,6 +542,37 @@ function runReader() {
       ?.addEventListener("click", () => location.reload());
   }
 
+  // ---------- chapter history (#chapter-N) so Back steps through chapters ----------
+  function chapterHash() {
+    return chapters.length > 1 ? `#chapter-${chapterIndex + 1}` : "";
+  }
+
+  function setHash(push) {
+    const hash = chapterHash();
+    if (!hash || location.hash === hash) return;
+    try {
+      history[push ? "pushState" : "replaceState"](null, "", hash);
+    } catch {}
+  }
+
+  function hashChapterIndex() {
+    const match = location.hash.match(/^#chapter-(\d+)$/);
+    if (!match) return -1;
+    const index = Number(match[1]) - 1;
+    return index >= 0 && index < chapters.length ? index : -1;
+  }
+
+  function goToChapter(index) {
+    loadChapter(index, false);
+    setHash(true);
+  }
+
+  window.addEventListener("popstate", () => {
+    if (!chapters.length) return;
+    const index = hashChapterIndex();
+    if (index >= 0 && index !== chapterIndex) loadChapter(index, false);
+  });
+
   function loadChapter(index, restoreScroll, persist = !restoreScroll) {
     const thisLoad = ++loadSeq;
     chapterIndex = Math.min(Math.max(index, 0), chapters.length - 1);
@@ -513,7 +601,7 @@ function runReader() {
           ${isLast ? '<section class="completion-panel" id="completionPanel" aria-live="polite"></section>' : ""}
           <div class="chapter-nav">
             <button class="nav-btn" id="prevBtn" ${chapterIndex === 0 ? "disabled" : ""}>Prev</button>
-            <select class="chapter-select" id="chapterSelect">${options}</select>
+            <select class="chapter-select" id="chapterSelect" aria-label="Chapter">${options}</select>
             ${forwardBtn}
           </div>
         </div>`;
@@ -522,16 +610,16 @@ function runReader() {
 
     settingsController.applySettings();
     document.getElementById("prevBtn").addEventListener("click", () => {
-      loadChapter(chapterIndex - 1, false);
+      goToChapter(chapterIndex - 1);
     });
     const nextBtn = document.getElementById("nextBtn");
     if (nextBtn) {
       nextBtn.addEventListener("click", () => {
-        loadChapter(chapterIndex + 1, false);
+        goToChapter(chapterIndex + 1);
       });
     }
     document.getElementById("chapterSelect").addEventListener("change", (e) => {
-      loadChapter(parseInt(e.target.value, 10), false);
+      goToChapter(parseInt(e.target.value, 10));
     });
 
     const jumpTo = (top, anchor) => {
@@ -568,9 +656,30 @@ function runReader() {
     }
 
     updateProgressUI();
+    // Web fonts can change the page height after first paint, which changes
+    // whether a short chapter scrolls at all, so recompute once they load.
+    fontsReady().then(() => {
+      if (thisLoad === loadSeq) updateProgressUI();
+    });
     if (persist) {
       dirty = true;
       persistProgress();
+    }
+  }
+
+  function onKeydown(event) {
+    if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey)
+      return;
+    if (event.target.closest?.("input, textarea, select, [contenteditable]"))
+      return;
+    if (!chapters.length || settingsController.isAnyDrawerOpen()) return;
+
+    if (event.key === "ArrowLeft" && chapterIndex > 0) {
+      goToChapter(chapterIndex - 1);
+    } else if (event.key === "ArrowRight" && chapterIndex < chapters.length - 1) {
+      goToChapter(chapterIndex + 1);
+    } else if (event.key === "b" || event.key === "B") {
+      addBookmark();
     }
   }
 
@@ -591,10 +700,13 @@ function runReader() {
       if (booksRes && booksRes.ok) {
         const books = await booksRes.json();
         if (Array.isArray(books)) {
-          libraryBooks = books;
+          libraryBooks = books.filter(
+            (book) => book && typeof book.id === "string",
+          );
           libraryLoaded = true;
           bookMeta =
-            books.find((book) => String(book.id) === String(bookId)) || null;
+            libraryBooks.find((book) => String(book.id) === String(bookId)) ||
+            null;
         }
       }
       const fallbackTitle = bookMeta ? bookMeta.title : `Book ${bookId}`;
@@ -645,8 +757,19 @@ function runReader() {
       const resolvedStart = saved
         ? resolveChapterIndex(saved.chapterKey, saved.chapterIndex)
         : -1;
-      const startIndex = resolvedStart >= 0 ? resolvedStart : 0;
-      loadChapter(startIndex, true, false);
+      const fromHash = hashChapterIndex();
+      // A #chapter-N link wins only when it points somewhere other than the
+      // saved chapter; otherwise restore the exact saved position.
+      const useHash = fromHash >= 0 && fromHash !== resolvedStart;
+      const startIndex = useHash
+        ? fromHash
+        : resolvedStart >= 0
+          ? resolvedStart
+          : 0;
+      const restore = !useHash;
+      // First-ever open: save immediately so short chapters register progress.
+      loadChapter(startIndex, restore, !saved || useHash);
+      setHash(false);
       // Migrate legacy records only; never bump updatedAt just for opening.
       if (saved && !saved.chapterKey && Number.isFinite(saved.updatedAt)) {
         saveProgress(bookId, {
@@ -657,16 +780,20 @@ function runReader() {
       }
 
       window.addEventListener("scroll", onScroll, { passive: true });
+      window.addEventListener("resize", updateProgressUI);
       window.addEventListener("pagehide", persistProgress);
       window.addEventListener("storage", (event) => {
         if (event.key === "ending:finished-books") {
           finishedBooks = loadFinishedBooks();
+          updateProgressUI();
+          persistProgress(true);
           renderCompletionPanel();
         }
       });
       document.addEventListener("visibilitychange", () => {
         if (document.visibilityState === "hidden") persistProgress();
       });
+      document.addEventListener("keydown", onKeydown);
 
       document.title = `${fallbackTitle} | 3NDING`;
     } catch (err) {

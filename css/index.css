@@ -1,20 +1,20 @@
 @font-face {
   font-family: "Fraunces";
-  src: url("../fonts/fraunces.woff2");
+  src: url("../fonts/fraunces.woff2") format("woff2");
   font-weight: 300 700;
   font-display: swap;
 }
 
 @font-face {
   font-family: "Work Sans";
-  src: url("../fonts/worksans.woff2");
+  src: url("../fonts/worksans.woff2") format("woff2");
   font-weight: 380 550;
   font-display: swap;
 }
 
 @font-face {
   font-family: "Space Mono";
-  src: url("../fonts/spacemono.woff2");
+  src: url("../fonts/spacemono.woff2") format("woff2");
   font-weight: 380 550;
   font-display: swap;
 }
@@ -187,6 +187,10 @@ main {
   flex: 0 0 auto;
   object-fit: cover;
   background: var(--paper-dim);
+}
+
+.continue-cover[hidden] {
+  display: none;
 }
 
 .continue-details {
@@ -504,6 +508,13 @@ main {
   text-decoration: none;
 }
 
+/* The card clips overflow, so an outside outline would be invisible.
+   Draw the focus ring inside the card instead. */
+.card .card-link:focus-visible {
+  outline: 3px solid var(--brass);
+  outline-offset: -4px;
+}
+
 @keyframes rise {
   to {
     opacity: 1;
@@ -517,6 +528,24 @@ main {
   aspect-ratio: 3/4;
   background: var(--paper-dim);
   overflow: hidden;
+}
+
+/* Shown when a cover is missing or fails to load. */
+.cover-fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  text-align: center;
+  font-family: "Fraunces", serif;
+  font-weight: 600;
+  font-size: 1rem;
+  line-height: 1.25;
+  color: var(--text-dark);
+  background: linear-gradient(160deg, var(--paper-dim), #d8caa3);
+  border: 1px solid rgba(72, 89, 79, 0.25);
 }
 
 .finished-badge {
@@ -620,11 +649,6 @@ main {
     border-color 0.15s ease;
 }
 
-.share-btn svg {
-  width: 16px;
-  height: 16px;
-}
-
 .share-btn:hover {
   transform: scale(1.08);
   background: rgba(23, 27, 33, 0.85);
@@ -644,11 +668,7 @@ main {
   fill: currentColor;
 }
 
-.fav-btn:focus-visible {
-  outline: 2px solid var(--brass-bright);
-  outline-offset: 2px;
-}
-
+.fav-btn:focus-visible,
 .share-btn:focus-visible {
   outline: 2px solid var(--brass-bright);
   outline-offset: 2px;
@@ -783,8 +803,7 @@ main {
   background: rgba(184, 146, 63, 0.12);
 }
 
-.error-box button:focus-visible,
-.card a:focus-visible {
+.error-box button:focus-visible {
   outline: 2px solid var(--brass-bright);
   outline-offset: 2px;
 }

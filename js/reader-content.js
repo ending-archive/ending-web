@@ -1,16 +1,6 @@
-export function escapeHtml(str) {
-  return String(str).replace(
-    /[&<>"']/g,
-    (ch) =>
-      ({
-        "&": "&amp;",
-        "<": "&lt;",
-        ">": "&gt;",
-        '"': "&quot;",
-        "'": "&#39;",
-      })[ch],
-  );
-}
+import { escapeHtml } from "./shared.js";
+
+export { escapeHtml };
 
 const EXPLICIT_RE = /^-{3}\s*([^\s-].*?)\s*-{3}$/;
 
@@ -22,19 +12,35 @@ const NUM = `(?:\\d+|${WORD_NUM}|${ROMAN})`;
 const KEYWORDS =
   "chapter|chap|part|book|section|volume|vol|act|kabanata|cap[ií]tulo|chapitre|kapitel|capitolo";
 
+// "Chapter 1", "Chapter 1: Title", "Chapter 1 - Title", and "Chapter 1 Title"
+// (an untitled-punctuation title may not contain sentence punctuation).
 const KEYWORD_RE = new RegExp(
-  `^(?:${KEYWORDS})\\.?\\s+${NUM}\\b\\s*(?:[.:\\-\\u2013\\u2014)]\\s*.*)?$`,
+  `^(?:${KEYWORDS})\\.?\\s+${NUM}\\b(?:\\s*[.:\\-\\u2013\\u2014)]\\s*.*|\\s+[^.!?]{1,60})?$`,
   "i",
 );
 const SPECIAL_RE =
-  /^(?:prologue|epilogue|preface|foreword|introduction|afterword|interlude|author'?s note)\b.{0,60}$/i;
-const BARE_NUM_RE = new RegExp(`^(?:\\d{1,4}|${ROMAN.toUpperCase()})\\.?$`);
+  /^(?:prologue|epilogue|preface|foreword|introduction|afterword|interlude|author'?s note)(?:\s*[:.\u2013\u2014-]\s*.{1,60})?$/i;
+// Bare numbers are limited to 3 digits so a lone "1984" paragraph isn't a heading.
+const BARE_NUM_RE = new RegExp(`^(?:\\d{1,3}|${ROMAN.toUpperCase()})\\.?$`);
 const CJK_RE = /^第\s*[0-9一二三四五六七八九十百零〇]+\s*[章話话節节回幕部]/;
+
+const WORD_NUM_RE = new RegExp(`^(?:${WORD_NUM})$`, "i");
+
+// KEYWORD_RE is case-insensitive, which lets words like "mix" pass as the
+// roman numeral MIX. Roman numerals must be upper case; digits and number
+// words may be any case.
+function numberTokenIsPlausible(line) {
+  const match = line.match(/^[^\s.]+\.?\s+([^\s.:\-\u2013\u2014)]+)/);
+  if (!match) return true;
+  const token = match[1];
+  if (/^\d+$/.test(token) || WORD_NUM_RE.test(token)) return true;
+  return token === token.toUpperCase();
+}
 
 function isImplicitHeading(line) {
   if (!line || line.length > 80) return false;
   return (
-    KEYWORD_RE.test(line) ||
+    (KEYWORD_RE.test(line) && numberTokenIsPlausible(line)) ||
     SPECIAL_RE.test(line) ||
     BARE_NUM_RE.test(line) ||
     CJK_RE.test(line)
@@ -65,7 +71,13 @@ function parseBookRaw(raw, fallbackTitle) {
     }
   }
 
-  const headings = explicit.length ? explicit : implicit;
+  // Implicit headings are guesses, so require at least two before trusting
+  // them. A single stray match would otherwise split the book at a false spot.
+  const headings = explicit.length
+    ? explicit
+    : implicit.length >= 2
+      ? implicit
+      : [];
   if (!headings.length) return wholeBook;
 
   const result = [];
@@ -94,9 +106,11 @@ function blockToHtml(block) {
     .map((line) => line.trim())
     .filter(Boolean);
   if (lines.length === 1) return `<p>${escapeHtml(lines[0])}</p>`;
-  const average = lines.reduce((length, line) => length + line.length, 0) / lines.length;
+  const average =
+    lines.reduce((length, line) => length + line.length, 0) / lines.length;
+  // Short, line-broken blocks are verse: keep the breaks, never hyphenate.
   if (average < 50)
-    return `<p>${lines.map(escapeHtml).join("<br>")}</p>`;
+    return `<p class="verse">${lines.map(escapeHtml).join("<br>")}</p>`;
   return `<p>${escapeHtml(lines.join(" "))}</p>`;
 }
 
@@ -124,8 +138,8 @@ export function paragraphize(text) {
   return blocks
     .map((block) => {
       const html = blockToHtml(block).replace(
-        /^<p>/,
-        `<p data-paragraph="${paragraphIndex}">`,
+        /^<p/,
+        `<p data-paragraph="${paragraphIndex}"`,
       );
       paragraphIndex += 1;
       return html;
