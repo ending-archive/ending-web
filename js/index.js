@@ -71,7 +71,11 @@ function runArchive() {
     } else {
       favorites.set(key, Date.now());
     }
-    saveFavorites(favorites);
+    if (!saveFavorites(favorites)) {
+      showStatus(
+        "Favorites can't be saved on this device, so they won't be kept after you leave.",
+      );
+    }
     updateFavCount();
 
     if (activeFilter === "favorites") {
@@ -91,7 +95,7 @@ function runArchive() {
     }
   }
 
-  const { createShareButton } = createArchiveSharing(shareStatus);
+  const { createShareButton, showStatus } = createArchiveSharing(shareStatus);
   const cards = createCatalogCards({
     grid,
     continueShelf,
@@ -229,7 +233,10 @@ function runArchive() {
   searchInput.addEventListener("input", () => applyFilter(true));
 
   function syncFilterButtons() {
-    favToggle.setAttribute("aria-pressed", String(activeFilter === "favorites"));
+    favToggle.setAttribute(
+      "aria-pressed",
+      String(activeFilter === "favorites"),
+    );
     finishedToggle.setAttribute(
       "aria-pressed",
       String(activeFilter === "finished"),

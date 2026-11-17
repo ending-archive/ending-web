@@ -66,7 +66,10 @@ export function loadFavorites() {
 export function saveFavorites(favorites) {
   try {
     localStorage.setItem(FAVORITES_KEY, JSON.stringify([...favorites]));
-  } catch {}
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function loadLibraryPage() {

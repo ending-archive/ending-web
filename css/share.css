@@ -1,0 +1,378 @@
+/* Share page: builds on index.css tokens (--ink, --brass, --paper...) */
+.share-shell {
+  position: relative;
+  z-index: 1;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow-x: clip; /* glow can never cause sideways scroll */
+  padding: 0 clamp(1rem, 4vw, 2rem);
+  background: radial-gradient(
+    ellipse 70% 48% at 50% 4%,
+    rgba(184, 146, 63, 0.1),
+    transparent 72%
+  );
+}
+
+/* ---- top bar ---- */
+.share-top {
+  width: 100%;
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 1rem 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid rgba(184, 146, 63, 0.22);
+}
+
+.share-brand {
+  font-family: "Fraunces", serif;
+  font-weight: 500;
+  font-size: 1.15rem;
+  letter-spacing: 0.04em;
+  color: var(--text-light);
+  text-decoration: none;
+}
+
+.share-back {
+  font-family: "Space Mono", monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  color: var(--brass-bright);
+  text-decoration: none;
+  white-space: nowrap;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid rgba(184, 146, 63, 0.3);
+  border-radius: var(--radius);
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.share-back:hover,
+.share-brand:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.25em;
+}
+
+.share-back:hover {
+  background: rgba(184, 146, 63, 0.08);
+  border-color: rgba(184, 146, 63, 0.55);
+}
+
+.share-back:focus-visible,
+.share-brand:focus-visible,
+.share-read:focus-visible {
+  outline: 2px solid var(--brass-bright);
+  outline-offset: 3px;
+}
+
+/* ---- layout ---- */
+.share-page {
+  flex: 1;
+  width: 100%;
+  max-width: 880px;
+  min-width: 0;
+  margin: 0 auto;
+  padding: clamp(1.5rem, 6vh, 3.5rem) 0;
+  display: flex;
+  align-items: center;
+}
+
+.share-card {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: clamp(1.5rem, 5vw, 2.5rem);
+  padding: clamp(1.25rem, 5vw, 2.5rem);
+  justify-items: center;
+  text-align: center;
+  background: linear-gradient(
+    145deg,
+    rgba(255, 255, 255, 0.045),
+    rgba(255, 255, 255, 0.015)
+  );
+  border: 1px solid rgba(184, 146, 63, 0.2);
+  box-shadow: 0 24px 70px -48px rgba(0, 0, 0, 0.9);
+  animation: share-rise 0.55s ease both;
+}
+
+@keyframes share-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---- cover ---- */
+.share-cover {
+  position: relative;
+  isolation: isolate;
+  width: min(190px, 68%);
+  min-width: 0;
+}
+
+.share-cover::before {
+  content: "";
+  position: absolute;
+  inset: 8% -12%;
+  z-index: -1;
+  background: radial-gradient(
+    closest-side,
+    rgba(212, 172, 87, 0.28),
+    transparent
+  );
+  filter: blur(18px);
+}
+
+.share-cover-frame {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  background: var(--paper-dim);
+  overflow: hidden;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.4),
+    0 18px 40px -16px rgba(0, 0, 0, 0.8);
+  outline: 1px solid rgba(242, 233, 211, 0.18);
+  outline-offset: 5px;
+}
+
+.share-cover-frame img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.share-cover-fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  text-align: center;
+  font-family: "Fraunces", serif;
+  font-weight: 600;
+  font-size: 1.25rem;
+  line-height: 1.25;
+  color: var(--text-dark);
+  background: linear-gradient(160deg, var(--paper-dim), #d8caa3);
+  overflow-wrap: anywhere;
+}
+
+/* ---- details ---- */
+.share-details {
+  width: 100%;
+  min-width: 0;
+  max-width: 36rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.share-kicker {
+  margin: 0;
+  padding: 0.3rem 0.7rem;
+  font-family: "Space Mono", monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--brass-bright);
+  border: 1px dashed rgba(184, 146, 63, 0.45);
+  border-radius: var(--radius);
+  background: rgba(184, 146, 63, 0.06);
+}
+
+.share-title {
+  margin: 0.9rem 0 0.4rem;
+  font-family: "Fraunces", serif;
+  font-weight: 500;
+  font-size: clamp(1.85rem, 5.5vw, 3rem);
+  line-height: 1.06;
+  letter-spacing: -0.01em;
+  color: var(--text-light);
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+
+.share-author {
+  margin: 0;
+  font-size: 0.98rem;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.share-blurb {
+  max-width: 54ch;
+  margin: 1.2rem 0 0;
+  padding-top: 1.2rem;
+  position: relative;
+  font-family: "Fraunces", serif;
+  font-style: italic;
+  font-size: 1.05rem;
+  line-height: 1.65;
+  color: var(--text-light);
+  opacity: 0.92;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+
+/* short brass rule above the blurb */
+.share-blurb::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 36px;
+  height: 1px;
+  transform: translateX(-50%);
+  background: var(--brass-bright);
+}
+
+/* ---- progress (only when this device has some) ---- */
+.share-progress {
+  width: 100%;
+  max-width: 18rem;
+  margin-top: 1.5rem;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.share-progress[hidden] {
+  display: none;
+}
+
+.share-progress-label {
+  font-family: "Space Mono", monospace;
+  font-size: 0.72rem;
+  color: var(--brass-bright);
+}
+
+.share-track {
+  display: block;
+  height: 4px;
+  overflow: hidden;
+  background: rgba(184, 146, 63, 0.18);
+  border-radius: 99px;
+}
+
+.share-fill {
+  display: block;
+  height: 100%;
+  background: var(--brass-bright);
+  border-radius: inherit;
+}
+
+/* ---- call to action ---- */
+.share-read {
+  margin-top: 1.75rem;
+  width: 100%;
+  max-width: 18rem;
+  padding: 0.95rem 1.4rem;
+  text-align: center;
+  font-family: "Space Mono", monospace;
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: var(--ink);
+  background: var(--brass);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 22px -10px rgba(212, 172, 87, 0.6);
+  transition:
+    background 0.15s ease,
+    transform 0.15s ease;
+}
+
+.share-read:hover {
+  background: var(--brass-bright);
+  transform: translateY(-1px);
+}
+
+.share-read:active {
+  transform: translateY(0);
+}
+
+.share-foot {
+  max-width: 920px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 1.25rem 0 max(2rem, env(safe-area-inset-bottom));
+  text-align: center;
+  font-family: "Space Mono", monospace;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  border-top: 1px solid rgba(184, 146, 63, 0.15);
+}
+
+/* ---- wider screens: cover left, text right ---- */
+@media (min-width: 720px) {
+  .share-card {
+    grid-template-columns: minmax(200px, 0.72fr) minmax(0, 1fr);
+    gap: clamp(2rem, 6vw, 4rem);
+    justify-items: stretch;
+    align-items: center;
+    text-align: left;
+  }
+
+  .share-cover {
+    width: 100%;
+    max-width: 270px;
+    justify-self: center;
+  }
+
+  .share-details {
+    align-items: flex-start;
+    max-width: none;
+  }
+
+  .share-blurb::before {
+    left: 0;
+    transform: none;
+  }
+
+  .share-read {
+    width: auto;
+    max-width: none;
+    min-width: 14rem;
+  }
+
+  .share-progress {
+    max-width: 20rem;
+  }
+}
+
+@media (max-width: 360px) {
+  .share-shell {
+    padding-inline: 0.75rem;
+  }
+
+  .share-card {
+    padding: 1rem;
+  }
+
+  .share-cover {
+    width: min(160px, 68%);
+  }
+
+  .share-brand {
+    font-size: 1.05rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .share-card {
+    animation: none;
+  }
+  .share-read {
+    transition: none;
+  }
+}

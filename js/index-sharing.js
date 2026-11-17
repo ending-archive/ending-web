@@ -45,5 +45,5 @@ export function createArchiveSharing(shareStatus) {
     return button;
   }
 
-  return { createShareButton };
+  return { createShareButton, showStatus };
 }

@@ -37,18 +37,24 @@ export async function copyText(text) {
 }
 
 export function bookUrl(id) {
-  const url = new URL("reader.html", location.href);
+  const url = new URL(`b/${encodeURIComponent(id)}/`, location.href);
   url.search = "";
   url.hash = "";
-  url.searchParams.set("id", id);
   return url.href;
+}
+
+function hasRealAuthor(book) {
+  const author = typeof book.author === "string" ? book.author.trim() : "";
+  return author !== "" && author !== "Unknown author";
 }
 
 export async function shareBook(book) {
   const url = bookUrl(book.id);
   const shareData = {
     title: book.title,
-    text: `Read "${book.title}" by ${book.author} on 3NDING.`,
+    text: hasRealAuthor(book)
+      ? `Read "${book.title}" by ${book.author} on 3NDING.`
+      : `Read "${book.title}" on 3NDING.`,
     url,
   };
 

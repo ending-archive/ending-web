@@ -123,10 +123,10 @@ export function createReaderSettings(
   }
 
   function syncBackdrop() {
-    el.backdrop.classList.toggle(
-      "visible",
-      isOpen(el.drawer) || isOpen(el.notesDrawer),
-    );
+    const open = isOpen(el.drawer) || isOpen(el.notesDrawer);
+    el.backdrop.classList.toggle("visible", open);
+    document.querySelector("main").inert = open;
+    document.querySelector(".topbar").inert = open;
   }
 
   function restoreFocus() {

@@ -517,7 +517,8 @@ body.theme-dark {
 }
 
 /* ---------- Reading surface ---------- */
-.reader-surface {
+.reader-surface,
+main {
   flex: 1;
   background: var(--read-bg);
   transition:
@@ -685,7 +686,7 @@ body.theme-dark {
 
 .suggestion-action {
   margin-top: 0.75rem;
-  color: var(--brass);
+  color: color-mix(in srgb, var(--brass) 45%, var(--read-fg));
   font-family: "Space Mono", monospace;
   font-size: 0.68rem;
   letter-spacing: 0.04em;
@@ -693,7 +694,7 @@ body.theme-dark {
 }
 
 .suggestion-arrow {
-  color: var(--brass);
+  color: color-mix(in srgb, var(--brass) 45%, var(--read-fg));
   font-size: 1.35rem;
   transition: transform 0.18s ease;
 }

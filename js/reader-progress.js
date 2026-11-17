@@ -21,7 +21,7 @@ export function scrollFraction() {
 
 export function progressFraction() {
   const max = document.documentElement.scrollHeight - window.innerHeight;
-  if (max <= 0) return 1;
+  if (max <= 0) return 0;
   return Math.min(1, Math.max(0, window.scrollY / max));
 }
 

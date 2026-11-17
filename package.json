@@ -1,0 +1,5 @@
+{
+  "scripts": {
+    "build:share": "node scripts/build-share-pages.mjs"
+  }
+}

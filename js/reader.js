@@ -11,6 +11,7 @@ import {
   scrollToAnchor,
 } from "./reader-progress.js";
 import { createReaderSharing, downloadBlob } from "./reader-sharing.js";
+import { validateBooks } from "./index-utils.js";
 
 function runReader() {
   if ("scrollRestoration" in history) history.scrollRestoration = "manual";
@@ -525,7 +526,8 @@ function runReader() {
     title.textContent = suggestion.title;
     const author = document.createElement("span");
     author.className = "suggestion-author";
-    author.textContent = `by ${suggestion.author}`;
+    author.textContent =
+      suggestion.author === "Unknown author" ? "" : `by ${suggestion.author}`;
 
     const action = document.createElement("span");
     action.className = "suggestion-action";
@@ -577,6 +579,9 @@ function runReader() {
   function goToChapter(index) {
     loadChapter(index, false);
     setHash(true);
+    const title = document.querySelector(".chapter-title");
+    title?.setAttribute("tabindex", "-1");
+    title?.focus({ preventScroll: true });
   }
 
   window.addEventListener("popstate", () => {
@@ -721,9 +726,7 @@ function runReader() {
       if (booksRes && booksRes.ok) {
         const books = await booksRes.json();
         if (Array.isArray(books)) {
-          libraryBooks = books.filter(
-            (book) => book && typeof book.id === "string",
-          );
+          libraryBooks = validateBooks(books).books;
           libraryLoaded = true;
           bookMeta =
             libraryBooks.find((book) => String(book.id) === String(bookId)) ||
