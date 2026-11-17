@@ -37,8 +37,6 @@ export function getProgress(book) {
   }
 }
 
-// Stored as [[id, timestamp], ...] so insertion order is always preserved.
-// Also reads the two legacy formats: an array of ids, and an {id: timestamp} object.
 export function loadFavorites() {
   try {
     const raw = localStorage.getItem(FAVORITES_KEY);

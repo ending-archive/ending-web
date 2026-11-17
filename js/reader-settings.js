@@ -16,33 +16,37 @@ function defaultSettings() {
   };
 }
 
-function loadSettings() {
-  const settings = defaultSettings();
+function readOverrides() {
+  const overrides = {};
   try {
     const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}") || {};
     if (["serif", "sans", "mono"].includes(saved.font))
-      settings.font = saved.font;
+      overrides.font = saved.font;
     if (["left", "justify"].includes(saved.align))
-      settings.align = saved.align;
+      overrides.align = saved.align;
     if (["paper", "sepia", "dark"].includes(saved.theme))
-      settings.theme = saved.theme;
-    // typeof check: Number(null) is 0, which would clamp to the minimum size.
+      overrides.theme = saved.theme;
     if (typeof saved.size === "number" && Number.isFinite(saved.size))
-      settings.size = Math.min(SIZE_MAX, Math.max(SIZE_MIN, saved.size));
+      overrides.size = Math.min(SIZE_MAX, Math.max(SIZE_MIN, saved.size));
   } catch {}
-  return settings;
+  return overrides;
 }
 
 export function createReaderSettings(
   el,
   { onOpenNotes, onBeforeChange, onAfterChange } = {},
 ) {
-  let settings = loadSettings();
+  let overrides = readOverrides();
+  let settings = { ...defaultSettings(), ...overrides };
   let returnFocusTo = null;
 
-  function saveSettings() {
+  function saveOverrides() {
     try {
-      localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+      if (Object.keys(overrides).length) {
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify(overrides));
+      } else {
+        localStorage.removeItem(SETTINGS_KEY);
+      }
     } catch {}
   }
 
@@ -51,7 +55,7 @@ export function createReaderSettings(
     document.body.classList.add("theme-" + settings.theme);
     document.documentElement.style.setProperty(
       "--font-size",
-      settings.size + "px",
+      settings.size / 16 + "rem",
     );
     document.documentElement.style.setProperty("--text-align", settings.align);
 
@@ -74,7 +78,8 @@ export function createReaderSettings(
   function updateSetting(key, value) {
     const token = onBeforeChange?.();
     settings[key] = value;
-    saveSettings();
+    overrides[key] = value;
+    saveOverrides();
     applySettings();
     onAfterChange?.(token);
   }
@@ -99,8 +104,9 @@ export function createReaderSettings(
   });
   el.resetBtn.addEventListener("click", () => {
     const token = onBeforeChange?.();
+    overrides = {};
     settings = defaultSettings();
-    saveSettings();
+    saveOverrides();
     applySettings();
     onAfterChange?.(token);
   });
@@ -176,7 +182,10 @@ export function createReaderSettings(
     }
   });
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && (isOpen(el.drawer) || isOpen(el.notesDrawer))) {
+    if (
+      event.key === "Escape" &&
+      (isOpen(el.drawer) || isOpen(el.notesDrawer))
+    ) {
       closeDrawer({ restore: false });
       closeNotesDrawer();
     }

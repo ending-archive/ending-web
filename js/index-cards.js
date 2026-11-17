@@ -1,6 +1,5 @@
 import { escapeHtml } from "./index-utils.js";
 
-// Swap a missing or broken cover for a text placeholder.
 function useCoverFallback(img, title) {
   const swap = () => {
     const fallback = document.createElement("div");
@@ -126,9 +125,7 @@ export function createCatalogCards({
         storedPercent <= 100;
       const percent = Math.min(
         99,
-        hasStoredPercent
-          ? storedPercent
-          : Math.max(0, legacyFraction * 100),
+        hasStoredPercent ? storedPercent : Math.max(0, legacyFraction * 100),
       );
       if (!Number.isFinite(percent)) return;
       if (percent < 1) return;

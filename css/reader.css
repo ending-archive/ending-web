@@ -284,8 +284,8 @@ body.theme-dark {
 }
 
 .notes-drawer {
-  width: min(390px, calc(100vw - 1rem));
-  padding-bottom: max(1.4rem, env(safe-area-inset-bottom));
+  width: min(320px, 88vw);
+  padding: 1.4rem 1.3rem 2rem;
 }
 
 .notes-list {
@@ -384,7 +384,7 @@ body.theme-dark {
   margin: 0 0 1rem;
   border-style: solid;
   color: var(--brass-bright);
-  text-align: left;
+  text-align: center;
 }
 
 .drawer-head {

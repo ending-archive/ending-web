@@ -123,8 +123,6 @@ function runArchive() {
     window.scrollTo({ top, behavior: "smooth" });
   }
 
-  // A disabled Prev/Next button drops keyboard focus, so move it to the
-  // first card of the new page.
   function focusFirstCard() {
     grid.querySelector(".card-link")?.focus({ preventScroll: true });
   }
@@ -146,11 +144,19 @@ function runArchive() {
   function renderCurrentPage() {
     const totalPages = Math.max(1, Math.ceil(lastMatches.length / PAGE_SIZE));
     currentPage = Math.min(Math.max(currentPage, 1), totalPages);
-    // Only remember the page of the full library, never of a filtered view.
     if (isUnfiltered()) saveLibraryPage(currentPage);
     const start = (currentPage - 1) * PAGE_SIZE;
     cards.renderBooks(lastMatches.slice(start, start + PAGE_SIZE));
     renderPagination(lastMatches.length);
+    const firstItem = start + 1;
+    const lastItem = Math.min(start + PAGE_SIZE, lastMatches.length);
+    const scope = searchInput.value.trim()
+      ? ` matching "${searchInput.value.trim()}"`
+      : "";
+    setStatus(
+      `Showing ${firstItem}–${lastItem} of ${lastMatches.length}${scope}`,
+      false,
+    );
   }
 
   function setStatus(text, animated) {
@@ -175,7 +181,7 @@ function runArchive() {
         .sort((a, b) => {
           const timeA = favorites.get(String(a.id)) || 0;
           const timeB = favorites.get(String(b.id)) || 0;
-          return timeB - timeA; // newest favorite first; swap for oldest first
+          return timeB - timeA;
         });
     } else if (activeFilter === "finished") {
       matches = matches.filter((book) => finishedBooks.has(String(book.id)));
@@ -218,18 +224,6 @@ function runArchive() {
 
     noResults.hidden = true;
     renderCurrentPage();
-
-    const noun =
-      activeFilter === "favorites"
-        ? "favorite"
-        : activeFilter === "finished"
-          ? "finished book"
-          : "book";
-    const scope = hasQuery ? ` matching "${searchInput.value.trim()}"` : "";
-    setStatus(
-      `Showing ${matches.length} ${noun}${matches.length === 1 ? "" : "s"}${scope}`,
-      false,
-    );
   }
 
   searchInput.addEventListener("input", () => applyFilter(true));
@@ -304,8 +298,6 @@ function runArchive() {
     cards.renderSkeletons(SKELETON_COUNT);
     setStatus("Cataloging the archive…", true);
 
-    // Only the network/parse step is guarded here. A bug in rendering below
-    // surfaces in the console instead of masquerading as a network error.
     let raw;
     try {
       const res = await fetch("books.json", { cache: "no-cache" });
@@ -330,7 +322,6 @@ function runArchive() {
       return;
     }
 
-    // Prefer an explicit stable "no" in books.json; fall back to position.
     catalogNo = new Map(
       books.map((b, i) => [
         String(b.id),

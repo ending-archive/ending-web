@@ -2,7 +2,7 @@ import { escapeHtml } from "./shared.js";
 
 export { escapeHtml };
 
-const EXPLICIT_RE = /^-{3}\s*([^\s-].*?)\s*-{3}$/;
+const EXPLICIT_RE = /^-{3}\s*(?=[^-]*[\p{L}\p{N}])([^\s-].*?)\s*-{3}$/u;
 
 const WORD_NUM =
   "(?:twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)(?:[- ](?:one|two|three|four|five|six|seven|eight|nine))?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|hundred";
@@ -12,23 +12,19 @@ const NUM = `(?:\\d+|${WORD_NUM}|${ROMAN})`;
 const KEYWORDS =
   "chapter|chap|part|book|section|volume|vol|act|kabanata|cap[ií]tulo|chapitre|kapitel|capitolo";
 
-// "Chapter 1", "Chapter 1: Title", "Chapter 1 - Title", and "Chapter 1 Title"
-// (an untitled-punctuation title may not contain sentence punctuation).
 const KEYWORD_RE = new RegExp(
   `^(?:${KEYWORDS})\\.?\\s+${NUM}\\b(?:\\s*[.:\\-\\u2013\\u2014)]\\s*.*|\\s+[^.!?]{1,60})?$`,
   "i",
 );
 const SPECIAL_RE =
   /^(?:prologue|epilogue|preface|foreword|introduction|afterword|interlude|author'?s note)(?:\s*[:.\u2013\u2014-]\s*.{1,60})?$/i;
-// Bare numbers are limited to 3 digits so a lone "1984" paragraph isn't a heading.
-const BARE_NUM_RE = new RegExp(`^(?:\\d{1,3}|${ROMAN.toUpperCase()})\\.?$`);
+const BARE_NUM_RE = new RegExp(
+  `^(?:\\d{1,3}|(?![LCDM]\\.?$)${ROMAN.toUpperCase()})\\.?$`,
+);
 const CJK_RE = /^第\s*[0-9一二三四五六七八九十百零〇]+\s*[章話话節节回幕部]/;
 
 const WORD_NUM_RE = new RegExp(`^(?:${WORD_NUM})$`, "i");
 
-// KEYWORD_RE is case-insensitive, which lets words like "mix" pass as the
-// roman numeral MIX. Roman numerals must be upper case; digits and number
-// words may be any case.
 function numberTokenIsPlausible(line) {
   const match = line.match(/^[^\s.]+\.?\s+([^\s.:\-\u2013\u2014)]+)/);
   if (!match) return true;
@@ -71,8 +67,6 @@ function parseBookRaw(raw, fallbackTitle) {
     }
   }
 
-  // Implicit headings are guesses, so require at least two before trusting
-  // them. A single stray match would otherwise split the book at a false spot.
   const headings = explicit.length
     ? explicit
     : implicit.length >= 2
@@ -108,7 +102,6 @@ function blockToHtml(block) {
   if (lines.length === 1) return `<p>${escapeHtml(lines[0])}</p>`;
   const average =
     lines.reduce((length, line) => length + line.length, 0) / lines.length;
-  // Short, line-broken blocks are verse: keep the breaks, never hyphenate.
   if (average < 50)
     return `<p class="verse">${lines.map(escapeHtml).join("<br>")}</p>`;
   return `<p>${escapeHtml(lines.join(" "))}</p>`;
@@ -155,7 +148,6 @@ function hashString(str) {
   return (hash >>> 0).toString(36);
 }
 
-// "slug.hash" - survives re-ordering and most edits; index is only a fallback.
 export function chapterKey(title, text) {
   const slug = String(title)
     .toLowerCase()

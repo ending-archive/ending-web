@@ -10,15 +10,12 @@ export function escapeHtml(str) {
   return String(str).replace(/[&<>"']/g, (ch) => HTML_ESCAPES[ch]);
 }
 
-// Returns true when the text was copied.
 export async function copyText(text) {
   if (navigator.clipboard?.writeText) {
     try {
       await navigator.clipboard.writeText(text);
       return true;
-    } catch {
-      // Fall through to the selection-based fallback.
-    }
+    } catch {}
   }
 
   const input = document.createElement("textarea");
@@ -47,7 +44,6 @@ export function bookUrl(id) {
   return url.href;
 }
 
-// Resolves to { status: "shared" | "copied" | "cancelled" | "failed", url }.
 export async function shareBook(book) {
   const url = bookUrl(book.id);
   const shareData = {

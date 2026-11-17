@@ -13,16 +13,12 @@ export function saveProgress(id, data) {
   } catch {}
 }
 
-// Scroll position as 0..1. Used for bookmarks and scroll restore.
-// Returns 0 when the page doesn't scroll.
 export function scrollFraction() {
   const max = document.documentElement.scrollHeight - window.innerHeight;
   if (max <= 0) return 0;
   return Math.min(1, Math.max(0, window.scrollY / max));
 }
 
-// Reading progress as 0..1. A chapter that fits on one screen is fully
-// visible, so it counts as fully read.
 export function progressFraction() {
   const max = document.documentElement.scrollHeight - window.innerHeight;
   if (max <= 0) return 1;
@@ -53,9 +49,8 @@ export function topbarHeight() {
   return document.querySelector(".topbar")?.getBoundingClientRect().height || 0;
 }
 
-// Paragraph index + fractional offset: stable across font/size/width changes.
-export function currentAnchor() {
-  if (window.scrollY <= 4) return null;
+export function currentAnchor({ allowTop = false } = {}) {
+  if (!allowTop && window.scrollY <= 4) return null;
   const top = topbarHeight();
   for (const p of document.querySelectorAll(".chapter-body [data-paragraph]")) {
     const r = p.getBoundingClientRect();

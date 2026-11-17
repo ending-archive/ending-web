@@ -54,10 +54,11 @@ function runReader() {
   let chapterIndex = 0;
   let saveTimer = null;
   let loadSeq = 0;
-  let suggestedId = null; // cached so the "next read" doesn't reshuffle on re-render
+  let suggestedId = null;
 
   let dirty = false;
   let suppressScrollEvents = false;
+  let restorePending = false;
   let annotations = { bookmarks: [] };
 
   const settingsController = createReaderSettings(el, {
@@ -99,7 +100,6 @@ function runReader() {
       : -1;
   }
 
-  // Resolves once the fonts used for the text are actually loaded.
   function fontsReady() {
     const family = { serif: "Literata", sans: "Work Sans", mono: "Space Mono" }[
       settingsController.settings.font
@@ -119,7 +119,6 @@ function runReader() {
     return typeof value === "string" && /^[\w-]{1,100}$/.test(value);
   }
 
-  // Rebuilds each bookmark from validated fields only; nothing stored is trusted.
   function sanitizeBookmark(item) {
     if (
       !item ||
@@ -145,7 +144,8 @@ function runReader() {
         Number.isFinite(item.offset) && item.offset >= 0 && item.offset <= 1
           ? item.offset
           : 0,
-      excerpt: typeof item.excerpt === "string" ? item.excerpt.slice(0, 120) : "",
+      excerpt:
+        typeof item.excerpt === "string" ? item.excerpt.slice(0, 120) : "",
       createdAt: Number.isFinite(item.createdAt) ? item.createdAt : 0,
     };
   }
@@ -184,7 +184,6 @@ function runReader() {
   function updateNotesButtons() {
     const count = annotations.bookmarks.length;
     el.openNotesBtn.textContent = `Bookmarks (${count})`;
-    el.openNotesBtn.style.textAlign = "center";
     el.exportNotesBtn.disabled = count === 0;
   }
 
@@ -245,7 +244,7 @@ function runReader() {
       setHash(false);
       const seq = loadSeq;
       fontsReady().then(() => {
-        if (seq !== loadSeq) return; // user moved to another chapter meanwhile
+        if (seq !== loadSeq) return;
         requestAnimationFrame(() =>
           requestAnimationFrame(() => {
             if (seq !== loadSeq) return;
@@ -253,7 +252,9 @@ function runReader() {
               document.documentElement.scrollHeight - window.innerHeight;
             suppressScrollEvents = true;
             if (
-              !(Number.isInteger(bookmark.paragraph) && scrollToAnchor(bookmark))
+              !(
+                Number.isInteger(bookmark.paragraph) && scrollToAnchor(bookmark)
+              )
             ) {
               window.scrollTo({
                 top: Math.max(0, max) * bookmark.fraction,
@@ -279,7 +280,10 @@ function runReader() {
       "",
       "BOOKMARKS",
       ...annotations.bookmarks.map((item) => {
-        const resolved = resolveChapterIndex(item.chapterKey, item.chapterIndex);
+        const resolved = resolveChapterIndex(
+          item.chapterKey,
+          item.chapterIndex,
+        );
         const title = chapters[resolved]?.title || "Chapter";
         return `- ${title} (${Math.round(item.fraction * 100)}% through chapter)`;
       }),
@@ -309,7 +313,8 @@ function runReader() {
 
   createReaderSharing({
     bookId,
-    getBookMeta: () => bookMeta,
+    getBookMeta: () =>
+      bookMeta ?? { id: bookId, title: el.topbarTitle.textContent, author: "" },
     el,
     showToast: showToast,
   });
@@ -329,6 +334,7 @@ function runReader() {
   }
 
   function persistProgress(force = false) {
+    if (restorePending) return;
     if ((!dirty && !force) || !bookId || !chapterSpans.length) return;
     const anchor = currentAnchor();
     saveProgress(bookId, {
@@ -374,12 +380,21 @@ function runReader() {
       return;
     }
     const fraction = scrollFraction();
-    const anchor = currentAnchor();
-    const existing = annotations.bookmarks.some(
-      (item) =>
-        item.chapterIndex === chapterIndex &&
-        Math.abs(item.fraction - fraction) < 0.012,
-    );
+    const anchor = currentAnchor({ allowTop: true });
+    const key = chapters[chapterIndex]?.key;
+    const existing = annotations.bookmarks.some((item) => {
+      const sameChapter = item.chapterKey
+        ? item.chapterKey === key
+        : item.chapterIndex === chapterIndex;
+      if (!sameChapter) return false;
+      if (anchor && item.paragraph !== null) {
+        return (
+          item.paragraph === anchor.paragraph &&
+          Math.abs(item.offset - anchor.offset) < 0.25
+        );
+      }
+      return Math.abs(item.fraction - fraction) < 0.012;
+    });
     if (existing) {
       showToast("There’s already a bookmark near this spot.");
       return;
@@ -392,7 +407,7 @@ function runReader() {
           {
             id: makeAnnotationId(),
             chapterIndex,
-            chapterKey: chapters[chapterIndex]?.key,
+            chapterKey: key,
             fraction,
             paragraph: anchor ? anchor.paragraph : null,
             offset: anchor ? anchor.offset : 0,
@@ -447,9 +462,7 @@ function runReader() {
         const latestFinishedBooks = loadFinishedBooks();
         latestFinishedBooks.add(String(bookId));
         if (!saveFinishedBooks(latestFinishedBooks)) {
-          showToast(
-            "This book couldn't be marked as finished on this device.",
-          );
+          showToast("This book couldn't be marked as finished on this device.");
           return;
         }
         finishedBooks = latestFinishedBooks;
@@ -477,7 +490,6 @@ function runReader() {
       return;
     }
 
-    // Keep the same suggestion across re-renders unless it's no longer valid.
     let suggestion = nextBook.find((book) => book.id === suggestedId);
     if (!suggestion) {
       suggestion = nextBook[Math.floor(Math.random() * nextBook.length)];
@@ -575,6 +587,7 @@ function runReader() {
 
   function loadChapter(index, restoreScroll, persist = !restoreScroll) {
     const thisLoad = ++loadSeq;
+    restorePending = false;
     chapterIndex = Math.min(Math.max(index, 0), chapters.length - 1);
     const chapter = chapters[chapterIndex];
     const total = chapters.length;
@@ -630,6 +643,7 @@ function runReader() {
       window.requestAnimationFrame(() => {
         window.requestAnimationFrame(() => {
           suppressScrollEvents = false;
+          if (thisLoad === loadSeq) restorePending = false;
           updateProgressUI();
         });
       });
@@ -641,6 +655,7 @@ function runReader() {
         ? resolveChapterIndex(saved.chapterKey, saved.chapterIndex)
         : -1;
       if (saved && savedIndex === chapterIndex) {
+        restorePending = true;
         fontsReady().then(() => {
           if (thisLoad !== loadSeq) return;
           const max =
@@ -656,8 +671,6 @@ function runReader() {
     }
 
     updateProgressUI();
-    // Web fonts can change the page height after first paint, which changes
-    // whether a short chapter scrolls at all, so recompute once they load.
     fontsReady().then(() => {
       if (thisLoad === loadSeq) updateProgressUI();
     });
@@ -668,7 +681,12 @@ function runReader() {
   }
 
   function onKeydown(event) {
-    if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey)
+    if (
+      event.defaultPrevented ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.altKey
+    )
       return;
     if (event.target.closest?.("input, textarea, select, [contenteditable]"))
       return;
@@ -676,7 +694,10 @@ function runReader() {
 
     if (event.key === "ArrowLeft" && chapterIndex > 0) {
       goToChapter(chapterIndex - 1);
-    } else if (event.key === "ArrowRight" && chapterIndex < chapters.length - 1) {
+    } else if (
+      event.key === "ArrowRight" &&
+      chapterIndex < chapters.length - 1
+    ) {
       goToChapter(chapterIndex + 1);
     } else if (event.key === "b" || event.key === "B") {
       addBookmark();
@@ -694,7 +715,7 @@ function runReader() {
     }
 
     try {
-      const booksRes = await fetch("books.json", { cache: "no-store" }).catch(
+      const booksRes = await fetch("books.json", { cache: "no-cache" }).catch(
         () => null,
       );
       if (booksRes && booksRes.ok) {
@@ -758,8 +779,6 @@ function runReader() {
         ? resolveChapterIndex(saved.chapterKey, saved.chapterIndex)
         : -1;
       const fromHash = hashChapterIndex();
-      // A #chapter-N link wins only when it points somewhere other than the
-      // saved chapter; otherwise restore the exact saved position.
       const useHash = fromHash >= 0 && fromHash !== resolvedStart;
       const startIndex = useHash
         ? fromHash
@@ -767,10 +786,8 @@ function runReader() {
           ? resolvedStart
           : 0;
       const restore = !useHash;
-      // First-ever open: save immediately so short chapters register progress.
       loadChapter(startIndex, restore, !saved || useHash);
       setHash(false);
-      // Migrate legacy records only; never bump updatedAt just for opening.
       if (saved && !saved.chapterKey && Number.isFinite(saved.updatedAt)) {
         saveProgress(bookId, {
           ...saved,
@@ -781,7 +798,7 @@ function runReader() {
 
       window.addEventListener("scroll", onScroll, { passive: true });
       window.addEventListener("resize", updateProgressUI);
-      window.addEventListener("pagehide", persistProgress);
+      window.addEventListener("pagehide", () => persistProgress());
       window.addEventListener("storage", (event) => {
         if (event.key === "ending:finished-books") {
           finishedBooks = loadFinishedBooks();

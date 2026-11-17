@@ -3,7 +3,7 @@ export { escapeHtml } from "./shared.js";
 export function normalizeSearchText(text) {
   const normalized = String(text)
     .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/[’‘'ʼ`]/g, "")
     .replace(/[^\p{L}\p{N}]+/gu, " ")
@@ -41,7 +41,6 @@ export function sortBooksByAddedAt(books) {
     .map(({ book }) => book);
 }
 
-// Drops malformed or duplicate entries so one bad record can't break the page.
 export function validateBooks(raw) {
   const books = [];
   const problems = [];

@@ -26,6 +26,27 @@
       type="font/woff2"
       crossorigin
     />
+    <link
+      rel="preload"
+      href="fonts/fraunces.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link
+      rel="preload"
+      href="fonts/worksans.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link
+      rel="preload"
+      href="fonts/spacemono.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
 
     <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png" />
     <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png" />
@@ -54,10 +75,11 @@
         );
         document.body.classList.add("theme-" + theme);
         const root = document.documentElement.style;
+        // rem, not px, so the browser's default font size preference counts.
         if (typeof s.size === "number" && Number.isFinite(s.size))
           root.setProperty(
             "--font-size",
-            Math.min(26, Math.max(14, s.size)) + "px",
+            Math.min(26, Math.max(14, s.size)) / 16 + "rem",
           );
         if (s.align === "justify") root.setProperty("--text-align", "justify");
       } catch {}
@@ -338,17 +360,18 @@
         Export bookmarks as .txt
       </button>
     </aside>
-
-    <div class="reader-surface" id="readerSurface">
-      <noscript>
-        <div class="state-box">
-          3NDING needs JavaScript to open books. Please enable it and reload.
+    <main>
+      <div class="reader-surface" id="readerSurface">
+        <noscript>
+          <div class="state-box">
+            3NDING needs JavaScript to open books. Please enable it and reload.
+          </div>
+        </noscript>
+        <div class="state-box" id="stateBox">
+          <span class="dot"></span> Opening the book…
         </div>
-      </noscript>
-      <div class="state-box" id="stateBox">
-        <span class="dot"></span> Opening the book…
       </div>
-    </div>
+    </main>
     <script type="module" src="js/reader.js"></script>
   </body>
 </html>
