@@ -301,18 +301,6 @@
   transform: translateY(0);
 }
 
-.share-foot {
-  max-width: 920px;
-  width: 100%;
-  margin: 0 auto;
-  padding: 1.25rem 0 max(2rem, env(safe-area-inset-bottom));
-  text-align: center;
-  font-family: "Space Mono", monospace;
-  font-size: 0.68rem;
-  color: var(--text-muted);
-  border-top: 1px solid rgba(184, 146, 63, 0.15);
-}
-
 /* ---- wider screens: cover left, text right ---- */
 @media (min-width: 720px) {
   .share-card {

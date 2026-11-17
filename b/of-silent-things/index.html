@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Of Silent Things by Yuki Tawara | 3NDING</title>
+  <meta name="theme-color" content="#171b21" />
+  <meta name="description" content="The teacup on the shelf had been chipped for thirty years, and nobody had thrown it away. Hana noticed this the morning after her mother&#39;s funeral, when the house was…" />
+  <link rel="canonical" href="https://example.com/b/of-silent-things/" />
+
+  <meta property="og:type" content="book" />
+  <meta property="og:site_name" content="3NDING" />
+  <meta property="og:title" content="Of Silent Things" />
+  <meta property="og:description" content="by Yuki Tawara — The teacup on the shelf had been chipped for thirty years, and nobody had thrown it away. Hana noticed this the morning after her mother&#39;s funeral, when the house was…" />
+  <meta property="og:url" content="https://example.com/b/of-silent-things/" />
+  <meta property="og:image" content="https://picsum.photos/seed/book-silent-things/600/800" />
+  <meta name="twitter:card" content="summary_large_image" />
+
+  <link rel="stylesheet" href="../../css/index.css" />
+  <link rel="stylesheet" href="../../css/share.css" />
+  <link rel="preload" href="../../fonts/fraunces.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="icon" type="image/png" sizes="32x32" href="../../favicon-32x32.png" />
+</head>
+<body>
+  <div class="share-shell">
+    <div class="share-top">
+      <a class="share-brand" href="../../index.html">3NDING</a>
+      <a class="share-back" href="../../index.html">Archive</a>
+    </div>
+
+    <main class="share-page">
+      <article class="share-card">
+        <div class="share-cover">
+          <div class="share-cover-frame">
+            <img src="https://picsum.photos/seed/book-silent-things/600/800" alt="Cover of Of Silent Things" width="300" height="400" />
+          </div>
+        </div>
+
+        <div class="share-details">
+          <p class="share-kicker">No. 0003</p>
+          <h1 class="share-title">Of Silent Things</h1>
+          <p class="share-author">by Yuki Tawara</p>
+          <p class="share-blurb">The teacup on the shelf had been chipped for thirty years, and nobody had thrown it away. Hana noticed this the morning after her mother&#39;s funeral, when the house was…</p>
+
+          <div class="share-progress" id="progress" hidden>
+            <span class="share-progress-label" id="progressLabel"></span>
+            <span class="share-track"><span class="share-fill" id="progressFill"></span></span>
+          </div>
+
+          <a class="share-read" id="readLink" href="../../reader.html?id=of-silent-things">Start reading</a>
+        </div>
+      </article>
+    </main>
+
+  </div>
+
+  <script>
+    // Cover fallback: swap a failed image for a styled title block.
+    const img = document.querySelector(".share-cover-frame img");
+    if (img) {
+      img.addEventListener("error", () => {
+        const f = document.createElement("div");
+        f.className = "share-cover-fallback";
+        f.setAttribute("aria-hidden", "true");
+        f.textContent = document.querySelector(".share-title").textContent;
+        img.replaceWith(f);
+      }, { once: true });
+    }
+
+    // Show "Continue reading" and a progress bar if this device has progress.
+    (() => {
+      const readLink = document.getElementById("readLink");
+      const progress = document.getElementById("progress");
+      const progressLabel = document.getElementById("progressLabel");
+      const progressFill = document.getElementById("progressFill");
+      if (!readLink || !progress || !progressLabel || !progressFill) return;
+
+      const readJson = (key, fallback) => {
+        try {
+          if (typeof localStorage === "undefined") return fallback;
+          const raw = localStorage.getItem(key);
+          if (raw === null || raw === "") return fallback;
+          const parsed = JSON.parse(raw);
+          return parsed;
+        } catch {
+          return fallback;
+        }
+      };
+
+      const id = "of-silent-things";
+      const storedProgress = readJson("ending:progress:" + id, null);
+      const finishedBooks = readJson("ending:finished-books", []);
+      const finished = Array.isArray(finishedBooks) && finishedBooks.includes(id);
+
+      if (finished) {
+        readLink.textContent = "Read again";
+        progress.hidden = false;
+        progressLabel.textContent = "Finished";
+        progressFill.style.width = "100%";
+        return;
+      }
+
+      if (storedProgress && typeof storedProgress === "object" && Number.isFinite(Number(storedProgress.updatedAt))) {
+        readLink.textContent = "Continue reading";
+        const pct = Math.round(Math.min(99, Math.max(0, Number(storedProgress.progressPercent) || 0)));
+        if (pct >= 1) {
+          progress.hidden = false;
+          progressLabel.textContent = pct + "% read";
+          progressFill.style.width = pct + "%";
+        }
+      }
+    })();
+  </script>
+</body>
+</html>

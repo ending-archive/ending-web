@@ -88,6 +88,7 @@ body.theme-dark {
   --read-fg: #d9dee6;
   --read-fg-soft: #9aa2ad;
   --read-line: rgba(217, 222, 230, 0.12);
+  color-scheme: dark;
 }
 
 /* ---------- Top chrome (always dark/brass, matches catalog) ---------- */
@@ -751,9 +752,9 @@ main {
 .chapter-select {
   font-family: "Space Mono", monospace;
   font-size: 0.65rem;
-  background: transparent;
+  background: var(--read-bg);
+  color: var(--read-fg);
   border: 1px solid var(--read-line);
-  color: var(--read-fg-soft);
   padding: 0.5rem 0.65rem;
   border-radius: var(--radius);
   max-width: 42vw;

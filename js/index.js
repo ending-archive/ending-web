@@ -79,7 +79,15 @@ function runArchive() {
     updateFavCount();
 
     if (activeFilter === "favorites") {
+      const idx = lastMatches.findIndex((b) => String(b.id) === key);
+      const neighbor = lastMatches[idx + 1] || lastMatches[idx - 1];
       applyFilter(false);
+      const target =
+        neighbor &&
+        grid.querySelector(
+          `.fav-btn[data-id="${CSS.escape(String(neighbor.id))}"]`,
+        );
+      (target || favToggle).focus();
       return;
     }
     const btn = grid.querySelector(`.fav-btn[data-id="${CSS.escape(key)}"]`);

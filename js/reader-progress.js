@@ -19,12 +19,6 @@ export function scrollFraction() {
   return Math.min(1, Math.max(0, window.scrollY / max));
 }
 
-export function progressFraction() {
-  const max = document.documentElement.scrollHeight - window.innerHeight;
-  if (max <= 0) return 0;
-  return Math.min(1, Math.max(0, window.scrollY / max));
-}
-
 export function buildChapterSpans(chapters) {
   const total =
     chapters.reduce((length, chapter) => length + chapter.text.length, 0) || 1;
@@ -42,7 +36,7 @@ export function buildChapterSpans(chapters) {
 export function overallPercent(chapterSpans, chapterIndex, finished = false) {
   if (finished) return 100;
   const { start, span } = chapterSpans[chapterIndex];
-  return Math.min(99, Math.max(0, (start + span * progressFraction()) * 100));
+  return Math.min(99, Math.max(0, (start + span * scrollFraction()) * 100));
 }
 
 export function topbarHeight() {

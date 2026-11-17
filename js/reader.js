@@ -277,8 +277,6 @@ function runReader() {
     if (!bookMeta || !annotations.bookmarks.length) return;
     const lines = [
       `${bookMeta.title}${bookMeta.author ? ` by ${bookMeta.author}` : ""}`,
-      "Bookmarks",
-      "",
       "BOOKMARKS",
       ...annotations.bookmarks.map((item) => {
         const resolved = resolveChapterIndex(

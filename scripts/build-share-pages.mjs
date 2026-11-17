@@ -135,18 +135,48 @@ function page(book, description) {
     }
 
     // Show "Continue reading" and a progress bar if this device has progress.
-    try {
-      const p = JSON.parse(localStorage.getItem("ending:progress:" + ${JSON.stringify(book.id)}) || "null");
-      if (p && Number.isFinite(p.updatedAt)) {
-        document.getElementById("readLink").textContent = "Continue reading";
-        const pct = Math.round(Math.min(99, Math.max(0, Number(p.progressPercent) || 0)));
+    (() => {
+      const readLink = document.getElementById("readLink");
+      const progress = document.getElementById("progress");
+      const progressLabel = document.getElementById("progressLabel");
+      const progressFill = document.getElementById("progressFill");
+      if (!readLink || !progress || !progressLabel || !progressFill) return;
+
+      const readJson = (key, fallback) => {
+        try {
+          if (typeof localStorage === "undefined") return fallback;
+          const raw = localStorage.getItem(key);
+          if (raw === null || raw === "") return fallback;
+          const parsed = JSON.parse(raw);
+          return parsed;
+        } catch {
+          return fallback;
+        }
+      };
+
+      const id = ${JSON.stringify(book.id)};
+      const storedProgress = readJson("ending:progress:" + id, null);
+      const finishedBooks = readJson("ending:finished-books", []);
+      const finished = Array.isArray(finishedBooks) && finishedBooks.includes(id);
+
+      if (finished) {
+        readLink.textContent = "Read again";
+        progress.hidden = false;
+        progressLabel.textContent = "Finished";
+        progressFill.style.width = "100%";
+        return;
+      }
+
+      if (storedProgress && typeof storedProgress === "object" && Number.isFinite(Number(storedProgress.updatedAt))) {
+        readLink.textContent = "Continue reading";
+        const pct = Math.round(Math.min(99, Math.max(0, Number(storedProgress.progressPercent) || 0)));
         if (pct >= 1) {
-          document.getElementById("progress").hidden = false;
-          document.getElementById("progressLabel").textContent = pct + "% read";
-          document.getElementById("progressFill").style.width = pct + "%";
+          progress.hidden = false;
+          progressLabel.textContent = pct + "% read";
+          progressFill.style.width = pct + "%";
         }
       }
-    } catch {}
+    })();
   </script>
 </body>
 </html>
