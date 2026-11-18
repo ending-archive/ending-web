@@ -1,5 +1,11 @@
 {
+  "private": true,
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
-    "build:share": "node scripts/build-share-pages.mjs"
+    "build:share": "node scripts/build-share-pages.mjs",
+    "build:seo": "node scripts/build-seo.mjs",
+    "build": "npm run build:share && npm run build:seo"
   }
 }

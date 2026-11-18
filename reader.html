@@ -55,8 +55,6 @@
 
   <body class="theme-paper">
     <script>
-      // Applies saved reading settings before first paint to avoid a flash.
-      // Keep the rules in sync with js/reader-settings.js.
       try {
         const s =
           JSON.parse(localStorage.getItem("ending:settings") || "{}") || {};
@@ -75,7 +73,6 @@
         );
         document.body.classList.add("theme-" + theme);
         const root = document.documentElement.style;
-        // rem, not px, so the browser's default font size preference counts.
         if (typeof s.size === "number" && Number.isFinite(s.size))
           root.setProperty(
             "--font-size",

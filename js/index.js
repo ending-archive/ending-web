@@ -132,7 +132,8 @@ function runArchive() {
 
   function scrollToGrid() {
     const top = grid.getBoundingClientRect().top + window.scrollY - 90;
-    window.scrollTo({ top, behavior: "smooth" });
+    const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    window.scrollTo({ top, behavior: reduceMotion ? "auto" : "smooth" });
   }
 
   function focusFirstCard() {

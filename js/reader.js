@@ -196,9 +196,8 @@ function runReader() {
         const title = available
           ? chapters[index].title || `Chapter ${index + 1}`
           : "Chapter unavailable";
-        const excerpt = item.excerpt
-          ? `<div class="saved-item-excerpt">“${escapeHtml(item.excerpt)}…”</div>`
-          : "";
+        const more = item.excerpt.length >= 80 ? "…" : "";
+        const excerpt = `<div class="saved-item-excerpt">“${escapeHtml(item.excerpt)}${more}”</div>`;
         return `<article class="saved-item">
           <div class="saved-item-label">${escapeHtml(title)} · ${Math.round(item.fraction * 100)}%</div>
           ${excerpt}

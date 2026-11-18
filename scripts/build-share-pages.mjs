@@ -1,14 +1,32 @@
-import { readFile, writeFile, mkdir, rm } from "node:fs/promises";
+import { readFile, writeFile, mkdir, rm, access } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const SITE_URL = (process.env.SITE_URL || "https://example.com").replace(
-  /\/+$/,
-  "",
-);
 const OUT_DIR = path.join(root, "b");
 
+// ---------- config: SITE_URL is required (no placeholder domain) ----------
+function readSiteUrl() {
+  const value = (process.env.SITE_URL || "").trim().replace(/\/+$/, "");
+  if (!value) {
+    console.error(
+      "SITE_URL is required, e.g.\n  SITE_URL=https://your-domain.com npm run build:share",
+    );
+    process.exit(1);
+  }
+  try {
+    const url = new URL(value);
+    if (!/^https?:$/.test(url.protocol)) throw new Error("bad protocol");
+  } catch {
+    console.error(`SITE_URL is not a valid http(s) URL: "${value}"`);
+    process.exit(1);
+  }
+  return value;
+}
+
+const SITE_URL = readSiteUrl();
+
+// ---------- helpers ----------
 const esc = (s) =>
   String(s).replace(
     /[&<>"']/g,
@@ -18,10 +36,70 @@ const esc = (s) =>
       ],
   );
 
+const isAbsoluteUrl = (url) =>
+  /^(https?:)?\/\//i.test(url) || /^data:/i.test(url);
+
+// Absolute URL for og:image / twitter:image.
 function absolute(url) {
   if (!url) return "";
-  if (/^https?:\/\//i.test(url)) return url;
+  if (/^\/\//.test(url)) return `https:${url}`;
+  if (isAbsoluteUrl(url)) return url;
   return `${SITE_URL}/${url.replace(/^\/+/, "")}`;
+}
+
+// URL usable from b/<id>/index.html. Local paths are relative to the site root,
+// so they need "../../" to resolve correctly from the share page.
+function assetHref(url) {
+  if (!url) return "";
+  if (isAbsoluteUrl(url)) return url;
+  return `../../${url.replace(/^\/+/, "")}`;
+}
+
+// Resolve a book's text file and make sure it stays inside the project.
+function textFilePath(book) {
+  const rel = book.file || `books/${book.id}.txt`;
+  const full = path.resolve(root, rel);
+  return full.startsWith(root + path.sep) ? full : null;
+}
+
+// Keep in sync with validateBooks() in js/index-utils.js so catalog numbers,
+// skipped entries and duplicate handling match what the archive page shows.
+function validateBooks(raw) {
+  const books = [];
+  const problems = [];
+  const seen = new Set();
+
+  raw.forEach((entry, i) => {
+    const where = `books.json[${i}]`;
+    if (!entry || typeof entry !== "object") {
+      problems.push(`${where}: not an object`);
+      return;
+    }
+    const id = typeof entry.id === "string" ? entry.id : "";
+    if (!/^[\w-]{1,100}$/.test(id)) {
+      problems.push(`${where}: missing or invalid id`);
+      return;
+    }
+    if (seen.has(id)) {
+      problems.push(`${where}: duplicate id "${id}" (skipped)`);
+      return;
+    }
+    if (typeof entry.title !== "string" || !entry.title.trim()) {
+      problems.push(`${where} (${id}): missing title`);
+      return;
+    }
+    seen.add(id);
+    books.push({
+      ...entry,
+      author:
+        typeof entry.author === "string" && entry.author.trim()
+          ? entry.author
+          : "Unknown author",
+      cover: typeof entry.cover === "string" ? entry.cover : "",
+    });
+  });
+
+  return { books, problems };
 }
 
 // Use "description" from books.json, else the first real paragraph of the text.
@@ -31,36 +109,40 @@ async function describe(book) {
     if (text.length <= 180) return text;
     return text.slice(0, 181).replace(/\s+\S*$/, "") + "…";
   }
-  try {
-    const raw = await readFile(
-      path.join(root, book.file || `books/${book.id}.txt`),
-      "utf8",
-    );
-    const blocks = raw.replace(/\r\n?/g, "\n").split(/\n\s*\n/);
-    for (const block of blocks) {
-      const text = block
-        .split("\n")
-        .map((l) => l.trim())
-        .filter(
-          (l) =>
-            l &&
-            !/^-{3}/.test(l) &&
-            !/^(chapter|part|book|section)\b.{0,20}$/i.test(l),
-        )
-        .join(" ");
-      if (text.length >= 60) {
-        if (text.length <= 170) return text;
-        return text.slice(0, 170).replace(/\s+\S*$/, "") + "…";
+  const file = textFilePath(book);
+  if (file) {
+    try {
+      const raw = await readFile(file, "utf8");
+      const blocks = raw.replace(/\r\n?/g, "\n").split(/\n\s*\n/);
+      for (const block of blocks) {
+        const text = block
+          .split("\n")
+          .map((l) => l.trim())
+          .filter(
+            (l) =>
+              l &&
+              !/^-{3}/.test(l) &&
+              !/^(chapter|part|book|section)\b.{0,20}$/i.test(l),
+          )
+          .join(" ");
+        if (text.length >= 60) {
+          if (text.length <= 170) return text;
+          return text.slice(0, 170).replace(/\s+\S*$/, "") + "…";
+        }
       }
-    }
-  } catch {}
+    } catch {}
+  }
   return "Read this story on 3NDING.";
 }
 
+// ---------- page template ----------
+// All behavior (cover fallback, continue-reading, progress bar) lives in
+// js/share.js, so changing it never requires regenerating these pages.
 function page(book, description) {
   const id = encodeURIComponent(book.id);
   const url = `${SITE_URL}/b/${id}/`;
-  const image = absolute(book.cover);
+  const ogImage = absolute(book.cover);
+  const coverSrc = assetHref(book.cover);
   const byline =
     book.author && book.author !== "Unknown author" ? `by ${book.author}` : "";
   const title = `${book.title}${byline ? " " + byline : ""} | 3NDING`;
@@ -80,15 +162,15 @@ function page(book, description) {
   <meta property="og:title" content="${esc(book.title)}" />
   <meta property="og:description" content="${esc(byline ? byline + " — " + description : description)}" />
   <meta property="og:url" content="${esc(url)}" />
-  ${image ? `<meta property="og:image" content="${esc(image)}" />` : ""}
-  <meta name="twitter:card" content="${image ? "summary_large_image" : "summary"}" />
+  ${ogImage ? `<meta property="og:image" content="${esc(ogImage)}" />\n  <meta name="twitter:image" content="${esc(ogImage)}" />` : ""}
+  <meta name="twitter:card" content="${ogImage ? "summary_large_image" : "summary"}" />
 
   <link rel="stylesheet" href="../../css/index.css" />
   <link rel="stylesheet" href="../../css/share.css" />
   <link rel="preload" href="../../fonts/fraunces.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="icon" type="image/png" sizes="32x32" href="../../favicon-32x32.png" />
 </head>
-<body>
+<body data-book-id="${esc(book.id)}">
   <div class="share-shell">
     <div class="share-top">
       <a class="share-brand" href="../../index.html">3NDING</a>
@@ -99,12 +181,12 @@ function page(book, description) {
       <article class="share-card">
         <div class="share-cover">
           <div class="share-cover-frame">
-            ${book.cover ? `<img src="${esc(book.cover)}" alt="Cover of ${esc(book.title)}" width="300" height="400" />` : `<div class="share-cover-fallback" aria-hidden="true">${esc(book.title)}</div>`}
+            ${coverSrc ? `<img src="${esc(coverSrc)}" alt="Cover of ${esc(book.title)}" width="300" height="400" />` : `<div class="share-cover-fallback" aria-hidden="true">${esc(book.title)}</div>`}
           </div>
         </div>
 
         <div class="share-details">
-          <p class="share-kicker">No. ${String(book.no || 0).padStart(4, "0")}</p>
+          <p class="share-kicker">No. ${String(book.no).padStart(4, "0")}</p>
           <h1 class="share-title">${esc(book.title)}</h1>
           ${byline ? `<p class="share-author">${esc(byline)}</p>` : ""}
           <p class="share-blurb">${esc(description)}</p>
@@ -121,73 +203,49 @@ function page(book, description) {
 
   </div>
 
-  <script>
-    // Cover fallback: swap a failed image for a styled title block.
-    const img = document.querySelector(".share-cover-frame img");
-    if (img) {
-      img.addEventListener("error", () => {
-        const f = document.createElement("div");
-        f.className = "share-cover-fallback";
-        f.setAttribute("aria-hidden", "true");
-        f.textContent = document.querySelector(".share-title").textContent;
-        img.replaceWith(f);
-      }, { once: true });
-    }
-
-    // Show "Continue reading" and a progress bar if this device has progress.
-    (() => {
-      const readLink = document.getElementById("readLink");
-      const progress = document.getElementById("progress");
-      const progressLabel = document.getElementById("progressLabel");
-      const progressFill = document.getElementById("progressFill");
-      if (!readLink || !progress || !progressLabel || !progressFill) return;
-
-      const readJson = (key, fallback) => {
-        try {
-          if (typeof localStorage === "undefined") return fallback;
-          const raw = localStorage.getItem(key);
-          if (raw === null || raw === "") return fallback;
-          const parsed = JSON.parse(raw);
-          return parsed;
-        } catch {
-          return fallback;
-        }
-      };
-
-      const id = ${JSON.stringify(book.id)};
-      const storedProgress = readJson("ending:progress:" + id, null);
-      const finishedBooks = readJson("ending:finished-books", []);
-      const finished = Array.isArray(finishedBooks) && finishedBooks.includes(id);
-
-      if (finished) {
-        readLink.textContent = "Read again";
-        progress.hidden = false;
-        progressLabel.textContent = "Finished";
-        progressFill.style.width = "100%";
-        return;
-      }
-
-      if (storedProgress && typeof storedProgress === "object" && Number.isFinite(Number(storedProgress.updatedAt))) {
-        readLink.textContent = "Continue reading";
-        const pct = Math.round(Math.min(99, Math.max(0, Number(storedProgress.progressPercent) || 0)));
-        if (pct >= 1) {
-          progress.hidden = false;
-          progressLabel.textContent = pct + "% read";
-          progressFill.style.width = pct + "%";
-        }
-      }
-    })();
-  </script>
+  <script type="module" src="../../js/share.js"></script>
 </body>
 </html>
 `;
 }
 
-const books = JSON.parse(await readFile(path.join(root, "books.json"), "utf8"));
+// ---------- main ----------
+let raw;
+try {
+  raw = JSON.parse(await readFile(path.join(root, "books.json"), "utf8"));
+} catch (err) {
+  console.error(`Could not read books.json: ${err.message}`);
+  process.exit(1);
+}
+if (!Array.isArray(raw)) {
+  console.error("books.json must be a list of books");
+  process.exit(1);
+}
+
+const { books, problems } = validateBooks(raw);
+problems.forEach((p) => console.warn(`[warn] ${p}`));
+
 await rm(OUT_DIR, { recursive: true, force: true }); // removed books lose their pages
+
 let count = 0;
-for (const book of books) {
-  if (!book || !/^[\w-]{1,100}$/.test(book.id || "") || !book.title) continue;
+for (const [i, entry] of books.entries()) {
+  // Same fallback as js/index.js: missing/invalid "no" becomes position + 1.
+  const book = {
+    ...entry,
+    no: Number.isInteger(entry.no) && entry.no > 0 ? entry.no : i + 1,
+  };
+
+  const file = textFilePath(book);
+  if (!file) {
+    console.warn(`[warn] ${book.id}: "file" points outside the project`);
+  } else {
+    await access(file).catch(() =>
+      console.warn(
+        `[warn] ${book.id}: text file not found (${path.relative(root, file)})`,
+      ),
+    );
+  }
+
   const dir = path.join(OUT_DIR, book.id);
   await mkdir(dir, { recursive: true });
   await writeFile(
@@ -196,4 +254,5 @@ for (const book of books) {
   );
   count++;
 }
-console.log(`Wrote ${count} share pages to b/`);
+
+console.log(`Wrote ${count} share pages to b/ (SITE_URL=${SITE_URL})`);
