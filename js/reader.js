@@ -1,4 +1,4 @@
-import { escapeHtml, paragraphize, parseBook } from "./reader-content.js";
+import { escapeHtml, paragraphize, parseBook, parseEpub } from "./reader-content.js";
 import { createReaderSettings } from "./reader-settings.js";
 import { loadFinishedBooks, saveFinishedBooks } from "./index-storage.js";
 import {
@@ -741,9 +741,9 @@ function runReader() {
       renderState("Opening the book…");
 
       const filePath =
-        bookMeta && bookMeta.file ? bookMeta.file : `books/${bookId}.txt`;
+        bookMeta && bookMeta.file ? bookMeta.file : `books/${bookId}.epub`;
 
-      let raw;
+      let arrayBuffer;
       try {
         const res = await fetch(filePath);
         if (res.status === 404) {
@@ -751,7 +751,7 @@ function runReader() {
           return;
         }
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        raw = await res.text();
+        arrayBuffer = await res.arrayBuffer();
       } catch (err) {
         renderError(
           `"${fallbackTitle}" couldn't be loaded. Check your connection and try again.`,
@@ -760,12 +760,32 @@ function runReader() {
         return;
       }
 
-      if (!raw.trim()) {
+      if (!arrayBuffer || arrayBuffer.byteLength === 0) {
         renderError(`"${fallbackTitle}" is empty.`);
         return;
       }
 
-      chapters = parseBook(raw, fallbackTitle);
+      const isZip =
+        arrayBuffer.byteLength >= 4 &&
+        new Uint8Array(arrayBuffer, 0, 4).every(
+          (b, i) => b === [0x50, 0x4b, 0x03, 0x04][i],
+        );
+
+      if (isZip || filePath.toLowerCase().endsWith(".epub")) {
+        chapters = await parseEpub(arrayBuffer, fallbackTitle);
+      } else {
+        const raw = new TextDecoder("utf-8").decode(arrayBuffer);
+        if (!raw.trim()) {
+          renderError(`"${fallbackTitle}" is empty.`);
+          return;
+        }
+        chapters = parseBook(raw, fallbackTitle);
+      }
+
+      if (!chapters || chapters.length === 0) {
+        renderError(`"${fallbackTitle}" has no readable content.`);
+        return;
+      }
       annotations = loadAnnotations();
       renderNotes();
       el.bookmarkBtn.disabled = false;

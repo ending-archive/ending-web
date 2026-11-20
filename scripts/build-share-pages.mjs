@@ -2,6 +2,10 @@ import { readFile, writeFile, mkdir, rm, access } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+// Load JSZip for reading EPUBs
+await import("../js/jszip.min.js");
+const JSZip = globalThis.JSZip;
+
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const OUT_DIR = path.join(root, "b");
 
@@ -57,9 +61,18 @@ function assetHref(url) {
   return `../../${url.replace(/^\/+/, "")}`;
 }
 
-// Resolve a book's text file and make sure it stays inside the project.
-function textFilePath(book) {
-  const rel = book.file || `books/${book.id}.txt`;
+// Decode basic XML entities
+const unescapeXml = (s) =>
+  String(s || "")
+    .replace(/&apos;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
+
+// Resolve a book's file and make sure it stays inside the project.
+function bookFilePath(book) {
+  const rel = book.file || `books/${book.id}.epub`;
   const full = path.resolve(root, rel);
   return full.startsWith(root + path.sep) ? full : null;
 }
@@ -104,35 +117,66 @@ function validateBooks(raw) {
   return { books, problems };
 }
 
-// Use "description" from books.json, else the first real paragraph of the text.
+// Extract description from EPUB (metadata or first real paragraph)
+async function extractEpubDescription(filePath) {
+  try {
+    const buf = await readFile(filePath);
+    const zip = await JSZip.loadAsync(buf);
+    const containerFile = zip.file("META-INF/container.xml");
+    if (!containerFile) return null;
+    const containerXml = await containerFile.async("text");
+    const opfMatch = containerXml.match(/full-path\s*=\s*["']([^"']+)["']/i);
+    if (!opfMatch) return null;
+    const opfPath = opfMatch[1];
+    const opfFile = zip.file(opfPath);
+    if (!opfFile) return null;
+    const opfXml = await opfFile.async("text");
+
+    const descMatch = opfXml.match(/<dc:description[^>]*>([\s\S]*?)<\/dc:description>/i);
+    if (descMatch && descMatch[1].trim()) {
+      const desc = unescapeXml(descMatch[1].replace(/<[^>]+>/g, "").trim().replace(/\s+/g, " "));
+      if (desc.length >= 20) {
+        return desc.length <= 170 ? desc : desc.slice(0, 170).replace(/\s+\S*$/, "") + "…";
+      }
+    }
+
+    const opfDir = opfPath.includes("/") ? opfPath.slice(0, opfPath.lastIndexOf("/") + 1) : "";
+    const spineMatch = opfXml.match(/<spine[^>]*>([\s\S]*?)<\/spine>/i);
+    if (!spineMatch) return null;
+    const itemrefMatches = [...spineMatch[1].matchAll(/<itemref\b[^>]*\bidref\s*=\s*["']([^"']+)["']/gi)];
+    for (const ref of itemrefMatches) {
+      const idref = ref[1];
+      const itemMatch = opfXml.match(new RegExp(`<item\\b[^>]*\\bid\\s*=\\s*["']${idref}["'][^>]*\\bhref\\s*=\\s*["']([^"']+)["']`, "i"))
+        || opfXml.match(new RegExp(`<item\\b[^>]*\\bhref\\s*=\\s*["']([^"']+)["'][^>]*\\bid\\s*=\\s*["']${idref}["']`, "i"));
+      if (!itemMatch) continue;
+      const href = itemMatch[1];
+      const fullPath = opfDir ? path.posix.join(opfDir, href) : href;
+      const chFile = zip.file(fullPath);
+      if (!chFile) continue;
+      const html = await chFile.async("text");
+      const pMatches = [...html.matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/gi)];
+      for (const p of pMatches) {
+        const text = unescapeXml(p[1].replace(/<[^>]+>/g, "").trim().replace(/\s+/g, " "));
+        if (text.length >= 60) {
+          return text.length <= 170 ? text : text.slice(0, 170).replace(/\s+\S*$/, "") + "…";
+        }
+      }
+    }
+  } catch {}
+  return null;
+}
+
+// Use "description" from books.json, else extract from EPUB file.
 async function describe(book) {
   if (typeof book.description === "string" && book.description.trim()) {
     const text = book.description.trim().replace(/\s+/g, " ");
     if (text.length <= 180) return text;
     return text.slice(0, 181).replace(/\s+\S*$/, "") + "…";
   }
-  const file = textFilePath(book);
+  const file = bookFilePath(book);
   if (file) {
-    try {
-      const raw = await readFile(file, "utf8");
-      const blocks = raw.replace(/\r\n?/g, "\n").split(/\n\s*\n/);
-      for (const block of blocks) {
-        const text = block
-          .split("\n")
-          .map((l) => l.trim())
-          .filter(
-            (l) =>
-              l &&
-              !/^-{3}/.test(l) &&
-              !/^(chapter|part|book|section)\b.{0,20}$/i.test(l),
-          )
-          .join(" ");
-        if (text.length >= 60) {
-          if (text.length <= 170) return text;
-          return text.slice(0, 170).replace(/\s+\S*$/, "") + "…";
-        }
-      }
-    } catch {}
+    const extracted = await extractEpubDescription(file);
+    if (extracted) return extracted;
   }
   return "Read this story on 3NDING.";
 }
@@ -237,13 +281,13 @@ for (const [i, entry] of books.entries()) {
     no: Number.isInteger(entry.no) && entry.no > 0 ? entry.no : i + 1,
   };
 
-  const file = textFilePath(book);
+  const file = bookFilePath(book);
   if (!file) {
     console.warn(`[warn] ${book.id}: "file" points outside the project`);
   } else {
     await access(file).catch(() =>
       console.warn(
-        `[warn] ${book.id}: text file not found (${path.relative(root, file)})`,
+        `[warn] ${book.id}: book file not found (${path.relative(root, file)})`,
       ),
     );
   }

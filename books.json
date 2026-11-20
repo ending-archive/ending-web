@@ -6,7 +6,7 @@
     "title": "The Cartographer's Daughter",
     "author": "Eleanor Whitfield",
     "cover": "https://picsum.photos/seed/book-cartographers-daughter/600/800",
-    "file": "books/cartographers-daughter.txt"
+    "file": "books/cartographers-daughter.epub"
   },
   {
     "id": "letters-to-a-young-botanist",
@@ -15,7 +15,7 @@
     "title": "Letters to a Young Botanist",
     "author": "H. T. Marwick",
     "cover": "https://picsum.photos/seed/book-letters-botanist/600/800",
-    "file": "books/letters-to-a-young-botanist.txt"
+    "file": "books/letters-to-a-young-botanist.epub"
   },
   {
     "id": "of-silent-things",
@@ -24,7 +24,7 @@
     "title": "Of Silent Things",
     "author": "Yuki Tawara",
     "cover": "https://picsum.photos/seed/book-silent-things/600/800",
-    "file": "books/of-silent-things.txt"
+    "file": "books/of-silent-things.epub"
   },
   {
     "id": "year-of-long-afternoons",
@@ -33,7 +33,7 @@
     "title": "The Year of Long Afternoons",
     "author": "Marco Bianchi",
     "cover": "https://picsum.photos/seed/book-long-afternoons/600/800",
-    "file": "books/year-of-long-afternoons.txt"
+    "file": "books/year-of-long-afternoons.epub"
   },
   {
     "id": "anatomy-of-a-quiet-room",
@@ -42,7 +42,7 @@
     "title": "Anatomy of a Quiet Room",
     "author": "Iris Cole",
     "cover": "https://picsum.photos/seed/book-quiet-room/600/800",
-    "file": "books/anatomy-of-a-quiet-room.txt"
+    "file": "books/anatomy-of-a-quiet-room.epub"
   },
   {
     "id": "last-lighthouse-keeper",
@@ -51,7 +51,7 @@
     "title": "The Last Lighthouse Keeper",
     "author": "A. F. Pemberton",
     "cover": "https://picsum.photos/seed/book-lighthouse-keeper/600/800",
-    "file": "books/last-lighthouse-keeper.txt"
+    "file": "books/last-lighthouse-keeper.epub"
   },
   {
     "id": "field-notes-from-the-edge",
@@ -60,7 +60,7 @@
     "title": "Field Notes from the Edge",
     "author": "Tobias Lyle",
     "cover": "https://picsum.photos/seed/book-field-notes-edge/600/800",
-    "file": "books/field-notes-from-the-edge.txt"
+    "file": "books/field-notes-from-the-edge.epub"
   },
   {
     "id": "glasshouse-years",
@@ -69,7 +69,7 @@
     "title": "The Glasshouse Years",
     "author": "Petra Holm",
     "cover": "https://picsum.photos/seed/book-glasshouse-years/600/800",
-    "file": "books/glasshouse-years.txt"
+    "file": "books/glasshouse-years.epub"
   },
   {
     "id": "slow-water",
@@ -78,7 +78,7 @@
     "title": "Slow Water",
     "author": "Nadia Okafor",
     "cover": "https://picsum.photos/seed/book-slow-water/600/800",
-    "file": "books/slow-water.txt"
+    "file": "books/slow-water.epub"
   },
   {
     "id": "pocket-book-of-hours",
@@ -87,6 +87,15 @@
     "title": "A Pocket Book of Hours",
     "author": "Anonymous",
     "cover": "https://picsum.photos/seed/book-pocket-hours/600/800",
-    "file": "books/pocket-book-of-hours.txt"
+    "file": "books/pocket-book-of-hours.epub"
+  },
+  {
+    "id": "middlemarch",
+    "no": 11,
+    "addedAt": "2026-11-20",
+    "title": "Middlemarch",
+    "author": "George Eliot",
+    "cover": "https://picsum.photos/seed/book-middlemarch/600/800",
+    "file": "books/middlemarch.epub"
   }
 ]
