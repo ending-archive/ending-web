@@ -61,7 +61,7 @@ export function createCatalogCards({
       cardLink.className = "card-link";
       cardLink.innerHTML = `
         <div class="cover-wrap">
-          <img src="${cover}" alt="Cover of ${title}" loading="lazy">
+          <img src="${cover}" alt="Cover of ${title}" width="300" height="400" loading="lazy">
           ${finished ? '<span class="finished-badge"><svg aria-hidden="true" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 8 3.2 3.2L13 4.5"/></svg>Finished</span>' : ""}
         </div>
         <div class="card-body">
@@ -161,6 +161,8 @@ export function createCatalogCards({
     const cover = document.createElement("img");
     cover.className = "continue-cover";
     cover.alt = "";
+    cover.width = 42;
+    cover.height = 56;
     cover.loading = "lazy";
     if (book.cover) {
       cover.src = book.cover;

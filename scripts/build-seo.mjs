@@ -6,7 +6,9 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 // ---------- config: SITE_URL is required ----------
 function readSiteUrl() {
-  const value = (process.env.SITE_URL || "").trim().replace(/\/+$/, "");
+  const value = (process.env.SITE_URL || "https://ending-web.pages.dev")
+    .trim()
+    .replace(/\/+$/, "");
   if (!value) {
     console.error(
       "SITE_URL is required, e.g.\n  SITE_URL=https://your-domain.com npm run build:seo",
@@ -164,4 +166,60 @@ await writeFile(path.join(root, "robots.txt"), robots);
 console.log(
   `Wrote sitemap.xml (${entries.length} URLs) and robots.txt (SITE_URL=${SITE_URL})`,
 );
+
+// ---------- sync index.html (JSON-LD ItemList & noscript catalog) ----------
+const indexPath = path.join(root, "index.html");
+if (await exists(indexPath)) {
+  let indexHtml = await readFile(indexPath, "utf8");
+
+  const itemListElements = books.map((book, idx) => ({
+    "@type": "ListItem",
+    position: idx + 1,
+    name: book.title,
+    url: `${SITE_URL}/b/${encodeURIComponent(book.id)}/`,
+  }));
+
+  const mainEntityJson = JSON.stringify(
+    {
+      "@type": "ItemList",
+      name: "Featured Archive Books",
+      itemListOrder: "https://schema.org/ItemListOrderAscending",
+      numberOfItems: books.length,
+      itemListElement: itemListElements,
+    },
+    null,
+    2,
+  )
+    .split("\n")
+    .map((line, i) => (i === 0 ? line : "            " + line))
+    .join("\n");
+
+  indexHtml = indexHtml.replace(
+    /"mainEntity":\s*\{\s*"@type":\s*"ItemList"[\s\S]*?\n\s*\}\s*\}/,
+    `"mainEntity": ${mainEntityJson}\n          }`,
+  );
+
+  const noscriptList = [
+    '<ul class="noscript-book-list">',
+    ...books.map((b) => {
+      const byline =
+        b.author && b.author !== "Unknown author"
+          ? ` — ${xmlEscape(b.author)}`
+          : "";
+      return `              <li><a href="b/${encodeURIComponent(b.id)}/">${xmlEscape(b.title)}${byline}</a></li>`;
+    }),
+    "            </ul>",
+  ].join("\n");
+
+  indexHtml = indexHtml.replace(
+    /<ul class="noscript-book-list">[\s\S]*?<\/ul>/,
+    noscriptList,
+  );
+
+  await writeFile(indexPath, indexHtml);
+  console.log(
+    `Updated index.html SEO structured data & noscript catalog (${books.length} books)`,
+  );
+}
+
 if (missingShare) process.exitCode = 1;

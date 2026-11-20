@@ -7,7 +7,9 @@ const OUT_DIR = path.join(root, "b");
 
 // ---------- config: SITE_URL is required (no placeholder domain) ----------
 function readSiteUrl() {
-  const value = (process.env.SITE_URL || "").trim().replace(/\/+$/, "");
+  const value = (process.env.SITE_URL || "https://ending-web.pages.dev")
+    .trim()
+    .replace(/\/+$/, "");
   if (!value) {
     console.error(
       "SITE_URL is required, e.g.\n  SITE_URL=https://your-domain.com npm run build:share",

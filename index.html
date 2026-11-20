@@ -3,24 +3,59 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>3NDING | Books Archive</title>
-    <meta name="theme-color" content="#171b21" />
+    <title>3NDING | Books Archive — Read Stories Online</title>
     <meta
       name="description"
-      content="Explore a growing library of stories and read them online."
+      content="Explore 3NDING, a curated digital archive of short stories, books, and novellas. Read online for free, track your reading progress, and save your favorites."
     />
+    <meta
+      name="robots"
+      content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"
+    />
+    <meta name="theme-color" content="#171b21" />
 
+    <!-- Canonical URL -->
+    <link rel="canonical" href="https://ending-web.pages.dev/" />
+
+    <!-- Open Graph / Facebook / Discord -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="3NDING" />
-    <meta property="og:title" content="3NDING | Books Archive" />
+    <meta property="og:url" content="https://ending-web.pages.dev/" />
+    <meta property="og:title" content="3NDING | Books Archive — Read Stories Online" />
     <meta
       property="og:description"
-      content="Explore a growing library of stories and read them online."
+      content="Explore 3NDING, a curated digital archive of short stories, books, and novellas. Read online for free, track your reading progress, and save your favorites."
     />
-    <meta name="twitter:card" content="summary" />
+    <meta property="og:image" content="https://ending-web.pages.dev/android-chrome-512x512.png" />
+    <meta property="og:image:width" content="512" />
+    <meta property="og:image:height" content="512" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:alt" content="3NDING Books Archive Logo" />
+    <meta property="og:locale" content="en_US" />
 
-    <link rel="stylesheet" href="css/index.css" />
+    <!-- Twitter / X -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="3NDING | Books Archive — Read Stories Online" />
+    <meta
+      name="twitter:description"
+      content="Explore 3NDING, a curated digital archive of short stories, books, and novellas. Read online for free, track your reading progress, and save your favorites."
+    />
+    <meta name="twitter:image" content="https://ending-web.pages.dev/android-chrome-512x512.png" />
+    <meta name="twitter:image:alt" content="3NDING Books Archive Logo" />
 
+    <!-- Performance: Preconnect & DNS-prefetch for book cover CDNs -->
+    <link rel="preconnect" href="https://picsum.photos" />
+    <link rel="dns-prefetch" href="https://picsum.photos" />
+    <link rel="preconnect" href="https://fastly.picsum.photos" crossorigin />
+
+    <!-- Performance: Preload catalog data & critical fonts -->
+    <link
+      rel="preload"
+      href="books.json"
+      as="fetch"
+      type="application/json"
+      crossorigin
+    />
     <link
       rel="preload"
       href="fonts/fraunces.woff2"
@@ -43,12 +78,124 @@
       crossorigin
     />
 
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="css/index.css" />
+
+    <!-- Icons & Manifest -->
+    <link rel="manifest" href="site.webmanifest" />
     <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png" />
     <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png" />
+
+    <!-- Structured Data (JSON-LD) for SEO Rich Snippets -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://ending-web.pages.dev/#website",
+            "url": "https://ending-web.pages.dev/",
+            "name": "3NDING",
+            "description": "Explore a growing library of stories and read them online.",
+            "inLanguage": "en-US",
+            "potentialAction": {
+              "@type": "SearchAction",
+              "target": {
+                "@type": "EntryPoint",
+                "urlTemplate": "https://ending-web.pages.dev/?q={search_term_string}"
+              },
+              "query-input": "required name=search_term_string"
+            }
+          },
+          {
+            "@type": "CollectionPage",
+            "@id": "https://ending-web.pages.dev/#webpage",
+            "url": "https://ending-web.pages.dev/",
+            "name": "3NDING | Books Archive — Read Stories Online",
+            "isPartOf": {
+              "@id": "https://ending-web.pages.dev/#website"
+            },
+            "description": "A curated public archive of digital books and stories to read online.",
+            "inLanguage": "en-US",
+            "mainEntity": {
+              "@type": "ItemList",
+              "name": "Featured Archive Books",
+              "itemListOrder": "https://schema.org/ItemListOrderAscending",
+              "numberOfItems": 10,
+              "itemListElement": [
+                {
+                  "@type": "ListItem",
+                  "position": 1,
+                  "name": "The Cartographer's Daughter",
+                  "url": "https://ending-web.pages.dev/b/cartographers-daughter/"
+                },
+                {
+                  "@type": "ListItem",
+                  "position": 2,
+                  "name": "Letters to a Young Botanist",
+                  "url": "https://ending-web.pages.dev/b/letters-to-a-young-botanist/"
+                },
+                {
+                  "@type": "ListItem",
+                  "position": 3,
+                  "name": "Of Silent Things",
+                  "url": "https://ending-web.pages.dev/b/of-silent-things/"
+                },
+                {
+                  "@type": "ListItem",
+                  "position": 4,
+                  "name": "The Year of Long Afternoons",
+                  "url": "https://ending-web.pages.dev/b/year-of-long-afternoons/"
+                },
+                {
+                  "@type": "ListItem",
+                  "position": 5,
+                  "name": "Anatomy of a Quiet Room",
+                  "url": "https://ending-web.pages.dev/b/anatomy-of-a-quiet-room/"
+                },
+                {
+                  "@type": "ListItem",
+                  "position": 6,
+                  "name": "The Last Lighthouse Keeper",
+                  "url": "https://ending-web.pages.dev/b/last-lighthouse-keeper/"
+                },
+                {
+                  "@type": "ListItem",
+                  "position": 7,
+                  "name": "Field Notes from the Edge",
+                  "url": "https://ending-web.pages.dev/b/field-notes-from-the-edge/"
+                },
+                {
+                  "@type": "ListItem",
+                  "position": 8,
+                  "name": "The Glasshouse Years",
+                  "url": "https://ending-web.pages.dev/b/glasshouse-years/"
+                },
+                {
+                  "@type": "ListItem",
+                  "position": 9,
+                  "name": "Slow Water",
+                  "url": "https://ending-web.pages.dev/b/slow-water/"
+                },
+                {
+                  "@type": "ListItem",
+                  "position": 10,
+                  "name": "A Pocket Book of Hours",
+                  "url": "https://ending-web.pages.dev/b/pocket-book-of-hours/"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    </script>
   </head>
 
   <body>
+    <!-- Skip to content link for accessibility -->
+    <a class="skip-link" href="#main">Skip to main content</a>
+
     <header>
       <div class="eyebrow">Books Archive</div>
       <h1>3NDING</h1>
@@ -69,7 +216,7 @@
       <div class="continue-grid" id="continueGrid"></div>
     </section>
 
-    <main>
+    <main id="main">
       <aside class="browse-panel" aria-label="Browse and filter the archive">
         <div class="browse-heading">
           <h2>Browse</h2>
@@ -136,11 +283,25 @@
       </aside>
 
       <div class="content">
+        <!-- Accessible fallback and direct crawling index for search engines -->
         <noscript>
-          <p class="no-results">
-            3NDING needs JavaScript to list and read books. Please enable it and
-            reload the page.
-          </p>
+          <div class="noscript-archive">
+            <p class="no-results">
+              3NDING is a public archive of short stories and novellas. Browse our catalog below:
+            </p>
+            <ul class="noscript-book-list">
+              <li><a href="b/cartographers-daughter/">The Cartographer&apos;s Daughter — Eleanor Whitfield</a></li>
+              <li><a href="b/letters-to-a-young-botanist/">Letters to a Young Botanist — H. T. Marwick</a></li>
+              <li><a href="b/of-silent-things/">Of Silent Things — Yuki Tawara</a></li>
+              <li><a href="b/year-of-long-afternoons/">The Year of Long Afternoons — Marco Bianchi</a></li>
+              <li><a href="b/anatomy-of-a-quiet-room/">Anatomy of a Quiet Room — Iris Cole</a></li>
+              <li><a href="b/last-lighthouse-keeper/">The Last Lighthouse Keeper — A. F. Pemberton</a></li>
+              <li><a href="b/field-notes-from-the-edge/">Field Notes from the Edge — Tobias Lyle</a></li>
+              <li><a href="b/glasshouse-years/">The Glasshouse Years — Petra Holm</a></li>
+              <li><a href="b/slow-water/">Slow Water — Nadia Okafor</a></li>
+              <li><a href="b/pocket-book-of-hours/">A Pocket Book of Hours — Anonymous</a></li>
+            </ul>
+          </div>
         </noscript>
         <div
           class="archive-status"
