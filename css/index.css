@@ -123,8 +123,11 @@ main {
   margin: 0 auto;
 }
 
+/* Reserve the exact height of the unfilled shelf so flipping it from
+   [hidden] to visible after the catalog loads causes zero layout shift. */
 .continue-shelf[hidden] {
-  display: none;
+  display: block;
+  min-height: 144px;
 }
 
 .continue-heading {
@@ -279,6 +282,21 @@ main {
 .fav-row,
 .search-row {
   margin-top: 0.75rem;
+}
+
+/* Placeholder rows reserve the height of the real search/fav rows until the
+   catalog loads, so unhiding the real rows below causes zero layout shift. */
+.skeleton-row {
+  height: calc(0.55rem + 0.68rem + 1.2rem + 0.6rem * 2 + 2px); /* label + gap + input + padding + borders */
+  border-radius: var(--radius);
+  background: linear-gradient(
+    100deg,
+    rgba(255, 255, 255, 0.02) 30%,
+    rgba(255, 255, 255, 0.06) 50%,
+    rgba(255, 255, 255, 0.02) 70%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.3s ease-in-out infinite;
 }
 
 .finished-toggle {
@@ -734,9 +752,13 @@ main {
   background: rgba(72, 89, 79, 0.06);
 }
 
-/* ---- Skeleton loading state ---- */
+/* ---- Skeleton loading state ----
+   Skeletons mirror the exact metrics of a rendered card (borders, padding,
+   line-heights, slip) so data arrival causes zero layout shift. */
 .skeleton {
-  background: var(--paper-dim);
+  background: var(--paper);
+  border-top: 1px solid var(--paper);
+  border-bottom: 1px solid var(--paper);
 }
 
 .skeleton .cover-wrap {
@@ -750,17 +772,34 @@ main {
   animation: shimmer 1.3s ease-in-out infinite;
 }
 
+.skeleton .card-body {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
 .skeleton .line {
-  height: 0.6rem;
+  height: 0.75rem;
   border-radius: 2px;
   background: linear-gradient(100deg, #e2d6b0 30%, #f2e7c6 50%, #e2d6b0 70%);
   background-size: 200% 100%;
   animation: shimmer 1.3s ease-in-out infinite;
-  margin: 0.35rem 0;
+  margin: 0;
 }
 
-.skeleton .line.short {
-  width: 60%;
+.skeleton .line.title {
+  margin: 0 0 0.25rem;
+}
+
+.skeleton .line.author {
+  height: 0.7rem;
+  width: 70%;
+}
+
+.skeleton .slip-ph {
+  border-top: 1px dashed rgba(72, 89, 79, 0.4);
+  padding: 0.4rem 0 0.5rem;
+  background: rgba(72, 89, 79, 0.06);
 }
 
 @keyframes shimmer {

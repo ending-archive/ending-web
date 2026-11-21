@@ -32,9 +32,10 @@ export function createCatalogCards({
       card.innerHTML = `
         <div class="cover-wrap"></div>
         <div class="card-body">
-          <div class="line"></div>
-          <div class="line short"></div>
+          <div class="line title"></div>
+          <div class="line author"></div>
         </div>
+        <div class="slip-ph"></div>
       `;
       grid.appendChild(card);
     }

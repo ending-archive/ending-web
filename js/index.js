@@ -22,6 +22,9 @@ function runArchive() {
   const continueGrid = document.getElementById("continueGrid");
   const status = document.getElementById("status");
   const searchRow = document.getElementById("searchRow");
+  const searchRowPh = document.getElementById("searchRowPh");
+  const favRowPh = document.getElementById("favRowPh");
+  const finishedRowPh = document.getElementById("finishedRowPh");
   const searchInput = document.getElementById("searchInput");
   const noResults = document.getElementById("noResults");
   const shareStatus = document.getElementById("shareStatus");
@@ -299,6 +302,9 @@ function runArchive() {
   });
 
   function showLoadError(err) {
+    searchRowPh.hidden = true;
+    favRowPh.hidden = true;
+    finishedRowPh.hidden = true;
     grid.innerHTML = `
       <div class="error-box">
         The archive couldn't be reached (${escapeHtml(err.message)}).<br>
@@ -313,6 +319,9 @@ function runArchive() {
   async function loadBooks() {
     cards.renderSkeletons(SKELETON_COUNT);
     setStatus("Cataloging the archive…", true);
+    searchRowPh.hidden = false;
+    favRowPh.hidden = false;
+    finishedRowPh.hidden = false;
 
     let raw;
     try {
@@ -349,6 +358,9 @@ function runArchive() {
     cards.renderContinueReading(allBooks);
     searchRow.hidden = false;
     favRow.hidden = false;
+    searchRowPh.hidden = true;
+    favRowPh.hidden = true;
+    finishedRowPh.hidden = true;
     updateFavCount();
     updateFinishedCount();
     applyFilter(false);
