@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /reader.html
+
+Sitemap: https://ending-web.pages.dev/sitemap.xml
